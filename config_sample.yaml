@@ -1,0 +1,3 @@
+whisper_cpp:
+  bin_path: "/path/to/whisper-cli"
+  model_path: "/path/to/ggml-model.bin"
