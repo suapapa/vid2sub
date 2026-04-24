@@ -8,8 +8,8 @@ A CLI tool that extracts audio from YouTube URLs or local videos, sends the full
 - **Local Video**: Extracts audio tracks from local video files as MP3 using `moviepy`.
 - **Upload**: Sends the extracted MP3 directly to the `/inference` endpoint. Format conversion is handled on the **server-side** (`whisper-server --convert`).
 - **Subtitles**: Writes the SRT body returned by the server directly to the output file.
-- **Polishing (Optional)**: Refines generated SRTs for mistranslations and typos using a project reference (local file or URL) via `--polish_with`. By default, it uses `llama-server` (OpenAI-compatible), or **Google Gemini** when the `--use_gemini` flag is provided.
-- **Translation (Optional)**: Translates the **final SRT** into target languages (comma-separated, e.g., `--translate_to en,pl`). Similarly, it defaults to `llama-server` and supports Gemini as an option.
+- **Polishing (Optional)**: Refines generated SRTs for mistranslations and typos using a project reference (local file or URL) via `create --polish_with`. By default, it uses `llama-server` (OpenAI-compatible), or **Google Gemini** when the `--use_gemini` flag is provided.
+- **Translation**: Translates SRT files into target languages (comma-separated codes). This is available both during generation (using `create -l en,pl`) or for existing files (using `translate -l en,pl`). Similarly, it defaults to `llama-server` and supports Gemini.
 
 ## Requirements
 
@@ -62,36 +62,40 @@ uv sync
 
 ```bash
 # YouTube → SRT (Uploads MP3; requires whisper-server --convert running)
-uv run main.py "https://www.youtube.com/watch?v=..." -o output.srt
+uv run main.py create "https://www.youtube.com/watch?v=..." -o output.srt
 
 # Local File → SRT
-uv run main.py video.mp4 -o output.srt
+uv run main.py create video.mp4 -o output.srt
 
 # Override Language
-uv run main.py video.mp4 -o output.srt --lang ko
+uv run main.py create video.mp4 -o output.srt --lang ko
 
-# Debugging: Retain temporary files
-uv run main.py video.mp4 -o output.srt --temp_dir ./tmp_work
-
-# Polish SRT using a reference document (defaults to llama-server in config.yaml)
-uv run main.py video.mp4 -o output.srt --polish_with ./README.md
+# Polish SRT using a reference document
+uv run main.py create video.mp4 -o output.srt --polish_with ./README.md
 
 # Polish and Translate using Gemini
 export GEMINI_API_KEY=...
-uv run main.py video.mp4 -o output.srt --use_gemini --polish_with ./README.md
-uv run main.py video.mp4 -o out.srt --use_gemini --translate_to en,pl
+uv run main.py create video.mp4 -o output.srt --use_gemini --polish_with ./README.md
+uv run main.py create video.mp4 -o output.srt --use_gemini -l en,pl
+
+# Translate existing SRT
+uv run main.py translate -l en,ja,pl output.srt
 ```
 
 ### CLI Options
 
-| Option | Description |
-| :--- | :--- |
-| `-o`, `--output` | Path to output SRT file (Required) |
-| `--lang` | Language code. Uses `whisper_cpp.default_language` if omitted. |
-| `--temp_dir` | Fixed temporary directory; will not be deleted after processing. |
-| `--use_gemini` | Use Gemini API for polishing/translation (Requires `GEMINI_API_KEY`). |
-| `--polish_with` | Path or `http(s)` URL to a reference document. Refines STT results and overwrites the `-o` file. (Uses llama-server if `--use_gemini` is not specified). |
-| `--translate_to` | Comma-separated language codes (e.g., `en,pl`). Saves translations as `stem_<code.srt`. (Uses llama-server if `--use_gemini` is not specified). |
+| Subcommand | Option | Description |
+| :--- | :--- | :--- |
+| **create** | `input` | YouTube URL or Local Video Path (Positional) |
+| | `-o`, `--output` | Path to output SRT file (Required) |
+| | `--lang` | Language code. Uses `whisper_cpp.default_language` if omitted. |
+| | `--temp_dir` | Fixed temporary directory; will not be deleted after processing. |
+| | `--use_gemini` | Use Gemini API for polishing/translation (Requires `GEMINI_API_KEY`). |
+| | `--polish_with` | Path or `http(s)` URL to a reference document. Refines STT results and overwrites the `-o` file. |
+| | `-l`, `--translate_to` | Comma-separated language codes (e.g., `en,pl`). |
+| **translate** | `input` | Input SRT file (Positional) |
+| | `-l`, `--langs` | Comma-separated language codes (Required) |
+| | `--use_gemini` | Use Gemini API for translation. |
 
 ## Dependency Summary
 

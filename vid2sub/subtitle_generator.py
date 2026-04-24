@@ -194,13 +194,39 @@ class SubtitleGenerator:
             print(f"[*] Overwrote SRT after polish: {out_file}")
 
         if translate_to:
-            for code in translate_to:
-                c = code.strip().lower()
-                if not c:
-                    continue
-                out_lang = out_file.with_name(
-                    "".join((out_file.stem, "_", c, out_file.suffix))
-                )
-                translated = translator.translate(final_srt, c)
-                out_lang.write_text(translated, encoding="utf-8")
-                print(f"[*] Wrote translated SRT: {out_lang}")
+            self.translate_srt_file(str(out_file), translate_to, use_gemini=use_gemini)
+
+    def translate_srt_file(
+        self,
+        input_srt_path: str,
+        translate_to: Sequence[str],
+        use_gemini: bool = False,
+    ):
+        """Translates an existing SRT file into multiple languages."""
+        input_p = Path(input_srt_path)
+        if not input_p.exists():
+            raise FileNotFoundError(f"SRT file not found: {input_srt_path}")
+
+        srt_body = input_p.read_text(encoding="utf-8")
+
+        translator = None
+        if use_gemini:
+            from .gemini_srt_translator import GeminiSrtTranslator
+            translator = GeminiSrtTranslator.from_env()
+        elif self.llamma_server_url:
+            translator = OpenAiSrtProcessor(self.llamma_server_url)
+        else:
+            raise ValueError(
+                "The --use_gemini flag or llamma_cpp.server_url in config.yaml is required for translation."
+            )
+
+        for code in translate_to:
+            c = code.strip().lower()
+            if not c:
+                continue
+            out_lang = input_p.with_name(
+                "".join((input_p.stem, "_", c, input_p.suffix))
+            )
+            translated = translator.translate(srt_body, c)
+            out_lang.write_text(translated, encoding="utf-8")
+            print(f"[*] Wrote translated SRT: {out_lang}")

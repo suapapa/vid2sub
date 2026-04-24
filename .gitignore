@@ -17,6 +17,7 @@ _ref/
 tmp/
 .DS_Store
 *.srt
+test_run.sh
 
 # agents
 .agents/
