@@ -3,6 +3,7 @@ import re
 import traceback
 from typing import Optional
 
+from vid2sub.logger import Logger
 from vid2sub.subtitle_generator import SubtitleGenerator
 
 _TRANSLATE_LANG_RE = re.compile(r"^[a-z0-9-]{2,24}$")
@@ -97,9 +98,9 @@ def main() -> None:
                 use_gemini=args.use_gemini,
             )
         
-        print("[+] Done!")
+        Logger.success("Done!")
     except Exception as e:
-        print(f"[!] Error: {e}")
+        Logger.error(f"Error: {e}")
         traceback.print_exc()
 
 

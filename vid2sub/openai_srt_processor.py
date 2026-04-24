@@ -1,5 +1,6 @@
 import requests
 from typing import Optional
+from .logger import Logger
 
 class OpenAiSrtProcessor:
     """Polishes or translates SRT using an OpenAI-compatible API (e.g., llama-server)."""
@@ -42,6 +43,9 @@ class OpenAiSrtProcessor:
         self.model = model
 
     def _call_api(self, prompt: str) -> str:
+        import json
+        import sys
+
         url = f"{self.server_url}/v1/chat/completions"
         payload = {
             "model": self.model,
@@ -50,15 +54,64 @@ class OpenAiSrtProcessor:
                 {"role": "user", "content": prompt}
             ],
             "temperature": 0.3,
+            "stream": True,
         }
         
-        print(f"[*] Calling OpenAI-compatible API at {url}...")
-        resp = requests.post(url, json=payload, timeout=600)
+        Logger.info(f"Calling OpenAI-compatible API at {url} (streaming)...")
+        resp = requests.post(url, json=payload, timeout=600, stream=True)
         resp.raise_for_status()
+
+        full_content = ""
+        reasoning_content = ""
         
-        data = resp.json()
-        content = data["choices"][0]["message"]["content"].strip()
-        return self._strip_markdown_code_fence(content)
+        Logger.separator()
+        for line in resp.iter_lines():
+            if not line:
+                continue
+            
+            line_str = line.decode("utf-8")
+            if line_str.startswith("data: "):
+                data_json = line_str[6:]
+                if data_json == "[DONE]":
+                    break
+                
+                try:
+                    chunk = json.loads(data_json)
+                    delta = chunk["choices"][0].get("delta", {})
+                    
+                    # 사고 과정(reasoning_content) 출력 - 회색
+                    if "reasoning_content" in delta and delta["reasoning_content"]:
+                        rc = delta["reasoning_content"]
+                        if not reasoning_content:
+                            print(f"{Logger.C_DIM}{Logger.C_GRAY}[Thinking]{Logger.C_RESET}")
+                            sys.stdout.write(Logger.C_DIM + Logger.C_GRAY)
+                        reasoning_content += rc
+                        sys.stdout.write(rc)
+                        sys.stdout.flush()
+                    
+                    # 실제 응답(content) 출력 - 파란색
+                    if "content" in delta and delta["content"]:
+                        if reasoning_content and full_content == "":
+                            # Thinking이 끝나고 응답이 시작될 때 색상 리셋 및 새 헤더
+                            sys.stdout.write(Logger.C_RESET)
+                            print(f"\n\n{Logger.C_BLUE}[Response]{Logger.C_RESET}")
+                            sys.stdout.write(Logger.C_BLUE)
+                        elif full_content == "":
+                            print(f"{Logger.C_BLUE}[Response]{Logger.C_RESET}")
+                            sys.stdout.write(Logger.C_BLUE)
+                        
+                        c = delta["content"]
+                        full_content += c
+                        sys.stdout.write(c)
+                        sys.stdout.flush()
+                except (json.JSONDecodeError, KeyError):
+                    continue
+
+        # 마지막 색상 리셋 및 하단 구분선
+        sys.stdout.write(Logger.C_RESET)
+        print()
+        Logger.separator()
+        return self._strip_markdown_code_fence(full_content)
 
     @staticmethod
     def _strip_markdown_code_fence(text: str) -> str:
@@ -73,7 +126,7 @@ class OpenAiSrtProcessor:
         return "\n".join(lines).strip()
 
     def polish(self, srt_body: str, reference_text: str) -> str:
-        print(f"[*] Polishing SRT using llama-server...")
+        Logger.info(f"Polishing SRT using llama-server...")
         prompt = f"{self._POLISH_PROMPT_HEAD}{reference_text}{self._POLISH_PROMPT_TAIL}{srt_body}"
         out = self._call_api(prompt)
         if not out.endswith("\n"):
@@ -81,7 +134,7 @@ class OpenAiSrtProcessor:
         return out
 
     def translate(self, srt_body: str, target_lang: str) -> str:
-        print(f"[*] Translating SRT to [{target_lang}] using llama-server...")
+        Logger.info(f"Translating SRT to [{target_lang}] using llama-server...")
         prompt = f"{self._TRANSLATE_PROMPT_HEAD}{target_lang}{self._TRANSLATE_PROMPT_MID}{srt_body}"
         out = self._call_api(prompt)
         if not out.endswith("\n"):

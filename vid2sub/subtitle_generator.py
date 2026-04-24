@@ -7,6 +7,7 @@ import yaml
 import yt_dlp
 from moviepy import VideoFileClip
 
+from .logger import Logger
 from .openai_srt_processor import OpenAiSrtProcessor
 
 
@@ -55,7 +56,7 @@ class SubtitleGenerator:
         return self._extract_from_file(Path(source), temp_dir)
 
     def _download_youtube(self, url: str, temp_dir: Path) -> Path:
-        print(f"[*] Downloading YouTube audio: {url}")
+        Logger.info(f"Downloading YouTube audio: {url}")
         output_path = temp_dir / "raw_audio.mp3"
         ydl_opts = {
             **self._YDL_OPTS_BASE,
@@ -66,7 +67,7 @@ class SubtitleGenerator:
         return output_path
 
     def _extract_from_file(self, file_path: Path, temp_dir: Path) -> Path:
-        print(f"[*] Extracting audio from local file: {file_path}")
+        Logger.info(f"Extracting audio from local file: {file_path}")
         if not file_path.exists():
             raise FileNotFoundError(f"File not found: {file_path}")
 
@@ -86,7 +87,7 @@ class SubtitleGenerator:
             "response_format": "srt",
             "language": language,
         }
-        print(f"[*] POST {inference_url} ({audio_path.name}, language={language})...")
+        Logger.info(f"POST {inference_url} ({audio_path.name}, language={language})...")
         with open(audio_path, "rb") as f:
             files = {"file": (audio_path.name, f, "application/octet-stream")}
             resp = requests.post(
@@ -149,7 +150,7 @@ class SubtitleGenerator:
         raw_audio = self.extract_audio(source, temp_path)
         srt_body = self.transcribe_via_server(raw_audio, language)
         final_srt = srt_body
-        print(f"[*] Saving SRT: {out_file}")
+        Logger.info(f"Saving SRT: {out_file}")
         out_file.write_text(final_srt, encoding="utf-8")
 
         # Initialize processors based on flags
@@ -170,7 +171,7 @@ class SubtitleGenerator:
             # Backup original SRT before polishing
             orig_file = out_file.with_name(f"{out_file.stem}_orig.srt")
             orig_file.write_text(srt_body, encoding="utf-8")
-            print(f"[*] Backup original SRT to: {orig_file}")
+            Logger.info(f"Backup original SRT to: {orig_file}")
 
             # polisher is already initialized above
             from .gemini_srt_polisher import GeminiSrtPolisher
@@ -178,7 +179,7 @@ class SubtitleGenerator:
 
             final_srt = polisher.polish(srt_body, ref)
             out_file.write_text(final_srt, encoding="utf-8")
-            print(f"[*] Overwrote SRT after polish: {out_file}")
+            Logger.success(f"Overwrote SRT after polish: {out_file}")
 
     def translate_srt_file(
         self,
@@ -213,4 +214,4 @@ class SubtitleGenerator:
             )
             translated = translator.translate(srt_body, c)
             out_lang.write_text(translated, encoding="utf-8")
-            print(f"[*] Wrote translated SRT: {out_lang}")
+            Logger.success(f"Wrote translated SRT: {out_lang}")

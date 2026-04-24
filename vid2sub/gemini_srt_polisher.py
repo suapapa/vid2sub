@@ -4,6 +4,8 @@ from typing import Optional
 
 import requests
 
+from .logger import Logger
+
 
 class GeminiSrtPolisher:
     """Polishes SRT content using the Gemini API based on a reference document."""
@@ -51,7 +53,7 @@ class GeminiSrtPolisher:
         if not s:
             raise ValueError("--polish_with value is empty.")
         if s.startswith(("http://", "https://")):
-            print(f"[*] Fetching polish reference: {s}")
+            Logger.info(f"Fetching polish reference: {s}")
             resp = requests.get(
                 s,
                 timeout=cls.REFERENCE_FETCH_TIMEOUT_SEC,
@@ -64,7 +66,7 @@ class GeminiSrtPolisher:
         path = Path(s)
         if not path.is_file():
             raise FileNotFoundError(f"Reference file not found: {path}")
-        print(f"[*] Loading polish reference file: {path}")
+        Logger.info(f"Loading polish reference file: {path}")
         return path.read_text(encoding="utf-8")
 
     @staticmethod
@@ -88,7 +90,7 @@ class GeminiSrtPolisher:
 
         user_msg = self._build_user_prompt(reference_text, srt_body)
         client = genai.Client(api_key=self._api_key)
-        print(f"[*] Polishing SRT with Gemini ({self._model})...")
+        Logger.info(f"Polishing SRT with Gemini ({self._model})...")
         resp = client.models.generate_content(
             model=self._model,
             contents=user_msg,

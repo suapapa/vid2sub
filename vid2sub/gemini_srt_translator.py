@@ -1,5 +1,5 @@
-import os
 from typing import Optional
+from .logger import Logger
 
 
 class GeminiSrtTranslator:
@@ -72,7 +72,7 @@ class GeminiSrtTranslator:
 
         user_msg = self._build_user_prompt(srt_body, code)
         client = genai.Client(api_key=self._api_key)
-        print(f"[*] Translating SRT to [{code}] with Gemini ({self._model})...")
+        Logger.info(f"Translating SRT to [{code}] with Gemini ({self._model})...")
         resp = client.models.generate_content(
             model=self._model,
             contents=user_msg,
