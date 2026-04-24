@@ -8,6 +8,7 @@ YouTube URL이나 로컬 비디오에서 음성을 추출한 뒤, **[whisper.cpp
 - **로컬 비디오**: `moviepy`로 오디오 트랙을 MP3로 추출합니다.
 - **업로드**: 추출한 MP3를 그대로 `/inference`로 보냅니다. 포맷 변환은 **서버 쪽**(`whisper-server --convert`)에서 처리합니다.
 - **자막**: 서버가 반환하는 SRT 본문을 출력 파일에 그대로 씁니다.
+- **퇴고(선택)**: `--polish_with`로 프로젝트 레퍼런스(로컬 파일 또는 URL)를 주면, 생성된 SRT를 **Google Gemini**로 오역·오탈자를 손봅니다. API 키는 환경변수 `GEMINI_API_KEY`입니다.
 
 ## 요구 사항
 
@@ -15,6 +16,7 @@ YouTube URL이나 로컬 비디오에서 음성을 추출한 뒤, **[whisper.cpp
 - [FFmpeg](https://ffmpeg.org/): `moviepy` / `yt-dlp` 오디오 처리에 필요합니다.
 - **whisper-server (`--convert`)**: [ggml-org/whisper.cpp](https://github.com/ggml-org/whisper.cpp) 저장소의 빌드·실행 안내에 따라 **`whisper-server`**를 띄울 때 반드시 **`--convert`** 플래그를 켜 두세요. 클라이언트는 MP3 등 그대로 올리고, 서버가 업로드 오디오를 인식에 맞게 변환합니다. 모델 경로 등 나머지 옵션은 upstream 문서를 따릅니다. 이 프로젝트는 해당 서버의 **`/inference`** multipart API에 맞춰 동작합니다.
 - **네트워크**: `config.yaml`의 `whisper_cpp.server_url`에서 클라이언트가 서버에 도달할 수 있어야 합니다.
+- **Gemini 퇴고**: `--polish_with`를 쓰면 Google AI API로 레퍼런스를 가져오거나( URL ) Gemini로 호출하므로 해당 구간에서 외부 네트워크가 필요합니다.
 
 ## STT 서버(whisper-server)
 
@@ -67,6 +69,11 @@ uv run main.py video.mp4 -o output.srt --lang ko
 
 # 디버깅: 임시 파일 유지
 uv run main.py video.mp4 -o output.srt --temp_dir ./tmp_work
+
+# 레퍼런스 문서를 참고해 SRT 퇴고 (STT 직후 동일 출력 파일에 덮어씀)
+export GEMINI_API_KEY=...   # Google AI Studio 등에서 발급
+uv run main.py video.mp4 -o output.srt --polish_with ./README.md
+uv run main.py video.mp4 -o output.srt --polish_with "https://example.com/doc.txt"
 ```
 
 ### CLI 옵션
@@ -76,10 +83,11 @@ uv run main.py video.mp4 -o output.srt --temp_dir ./tmp_work
 | `-o`, `--output` | 출력 SRT 경로 (필수) |
 | `--lang` | 언어 코드. 생략 시 `whisper_cpp.default_language` |
 | `--temp_dir` | 임시 디렉터리를 고정하면 작업 후에도 삭제하지 않음 |
+| `--polish_with` | 레퍼런스 경로 또는 `http(s)` URL. STT 결과를 Gemini로 퇴고해 `-o` 파일을 덮어씀 (`GEMINI_API_KEY` 필요) |
 
 ## 의존성 요약
 
-`pyproject.toml` 기준: `requests`, `yt-dlp`, `moviepy`, `pyyaml` 등. 자세한 버전은 저장소의 lock/메타데이터를 참고하세요.
+`pyproject.toml` 기준: `requests`, `yt-dlp`, `moviepy`, `pyyaml`, `google-genai` 등. 자세한 버전은 저장소의 lock/메타데이터를 참고하세요.
 
 ## 라이선스
 

@@ -18,6 +18,7 @@
 | STT(Speech-to-Text) 연동 | ✅ 완료 | `whisper-server --convert` + `config.yaml`의 `server_url`에 `POST …/inference` (multipart, `requests`). 클라이언트는 MP3만 업로드 |
 | SRT 출력 | ✅ 완료 | 서버 응답(`response_format=srt`)을 그대로 저장 |
 | 설정 파일(`config.yaml`) 연동 | ✅ 완료 | `server_url`, `default_language` (`pyyaml`) |
+| Gemini 기반 SRT 퇴고(`--polish_with`, `GEMINI_API_KEY`) | ✅ 완료 | `google-genai`, 레퍼런스는 로컬 파일 또는 URL |
 
 ## 기술 스택 관련 참고 사항
 
