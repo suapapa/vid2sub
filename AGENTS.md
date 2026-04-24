@@ -13,14 +13,14 @@
 | 기능 | 상태 | 비고 |
 | :--- | :---: | :--- |
 | 프로젝트 구조 설정 및 의존성 정의 | ✅ 완료 | `pyproject.toml`, `uv` 사용 |
-| YouTube URL 기반 음성 추출 | ✅ 완료 | `yt-dlp` 사용 |
-| 로컬 비디오 파일 기반 음성 추출 | ✅ 완료 | `moviepy` 사용 |
-| WAV 파일 변환 로직 | ✅ 완료 | `pydub` 사용 |
-| STT(Speech-to-Text) 엔진 통합 | ✅ 완료 | `whisper.cpp` 사용 |
-| SRT 파일 포맷 생성 로직 | ✅ 완료 | |
-| 설정 파일(`config.yaml`) 연동 | ✅ 완료 | `pyyaml` 사용 |
+| YouTube URL 기반 음성 추출 | ✅ 완료 | `yt-dlp` → MP3 |
+| 로컬 비디오 파일 기반 음성 추출 | ✅ 완료 | `moviepy` → MP3 |
+| STT(Speech-to-Text) 연동 | ✅ 완료 | `whisper-server --convert` + `config.yaml`의 `server_url`에 `POST …/inference` (multipart, `requests`). 클라이언트는 MP3만 업로드 |
+| SRT 출력 | ✅ 완료 | 서버 응답(`response_format=srt`)을 그대로 저장 |
+| 설정 파일(`config.yaml`) 연동 | ✅ 완료 | `server_url`, `default_language` (`pyyaml`) |
 
 ## 기술 스택 관련 참고 사항
 
-- **FFmpeg**: 핵심 오디오 처리 도구입니다. 에이전트는 사용자의 환경에 FFmpeg이 설치되어 있다고 가정하거나 설치 안내를 제공해야 합니다.
-- **STT 엔진**: 정확도와 비용을 고려하여 최적의 STT 엔진을 선택하고 구현하십시오.
+- **FFmpeg**: `moviepy` / `yt-dlp` 후처리에서 사용됩니다. 시스템에 설치되어 있어야 합니다.
+- **STT**: 로컬 `whisper-cli` 바이너리가 아니라, **`whisper-server --convert`**로 띄운 HTTP 서버를 가정합니다. 엔드포인트는 `{server_url}/inference`이며, 본문은 `file`, `response_format=srt`, `language` 필드를 사용합니다. 오디오 포맷 변환은 클라이언트가 하지 않습니다.
+- **언어**: CLI `--lang`이 없으면 `whisper_cpp.default_language`를 사용합니다.
