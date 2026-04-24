@@ -1,7 +1,28 @@
 import argparse
+import re
 import traceback
+from typing import Optional
 
 from video2srt.subtitle_generator import SubtitleGenerator
+
+_TRANSLATE_LANG_RE = re.compile(r"^[a-z0-9-]{2,24}$")
+
+
+def _parse_translate_to(raw: Optional[str]) -> Optional[list[str]]:
+    if not raw or not str(raw).strip():
+        return None
+    out: list[str] = []
+    for part in str(raw).split(","):
+        c = part.strip().lower()
+        if not c:
+            continue
+        if not _TRANSLATE_LANG_RE.fullmatch(c):
+            raise ValueError(
+                f"번역 언어 코드는 영문 소문자·숫자·하이픈만 허용합니다(2~24자): {part!r}"
+            )
+        if c not in out:
+            out.append(c)
+    return out or None
 
 
 def main() -> None:
@@ -24,10 +45,17 @@ def main() -> None:
         metavar="PATH_OR_URL",
         help="레퍼런스 문서(로컬 경로 또는 http(s) URL). STT SRT를 Gemini로 퇴고할 때 사용. GEMINI_API_KEY 필요",
     )
+    parser.add_argument(
+        "--translate_to",
+        default=None,
+        metavar="LANGS",
+        help="쉼표로 구분된 목표 언어 코드(예: en,ja). 각각 `-o`와 같은 디렉터리에 stem_<코드>.srt 저장. GEMINI_API_KEY 필요",
+    )
 
     args = parser.parse_args()
 
     try:
+        translate_langs = _parse_translate_to(args.translate_to)
         gen = SubtitleGenerator()
         gen.process(
             args.input,
@@ -35,6 +63,7 @@ def main() -> None:
             args.temp_dir,
             language=args.lang,
             polish_with=args.polish_with,
+            translate_to=translate_langs,
         )
         print("[+] Done!")
     except Exception as e:

@@ -9,12 +9,12 @@ class GeminiSrtPolisher:
     """레퍼런스 문서를 바탕으로 Gemini API로 SRT 본문을 퇴고합니다."""
 
     _PROMPT_HEAD = (
-        "너는 영상 자막 퇴고 전문가야. 프로젝트의 설명을 한국어 구어체로 자연스럽게 퇴고해줘.\n"
-        "프로젝트의 레퍼런스 문서를 줄테니 참고해서 퇴고해.\n---\n"
+        "Polish Korean subtitle dialogue into natural spoken Korean; align wording with the reference after '---'.\n"
+        "---\n"
     )
     _PROMPT_TAIL = (
-        "\n\n다음은 퇴고할 SRT 원문이야. 각 자막 블록의 번호·타임코드는 절대 건드리지 말고, 대사 텍스트만 퇴고해줘. "
-        "응답에는 수정된 SRT만 출력해줘(머리말·설명·마크다운 코드펜스 없이).\n\n"
+        "\n\nSRT below: keep cue numbers and timecodes exactly; edit dialogue text only. "
+        "Reply with the full revised SRT only—no preamble, markdown fences, or notes.\n\n"
     )
 
     DEFAULT_MODEL = "gemini-2.5-flash"

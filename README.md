@@ -9,6 +9,7 @@ YouTube URL이나 로컬 비디오에서 음성을 추출한 뒤, **[whisper.cpp
 - **업로드**: 추출한 MP3를 그대로 `/inference`로 보냅니다. 포맷 변환은 **서버 쪽**(`whisper-server --convert`)에서 처리합니다.
 - **자막**: 서버가 반환하는 SRT 본문을 출력 파일에 그대로 씁니다.
 - **퇴고(선택)**: `--polish_with`로 프로젝트 레퍼런스(로컬 파일 또는 URL)를 주면, 생성된 SRT를 **Google Gemini**로 오역·오탈자를 손봅니다. API 키는 환경변수 `GEMINI_API_KEY`입니다.
+- **번역(선택)**: `--translate_to en,pl`처럼 쉼표로 구분된 언어 코드를 주면, **최종 SRT**(퇴고가 있으면 퇴고 후 본문)를 Gemini로 번역해 `-o`와 같은 디렉터리에 `stem_en.srt`, `stem_pl.srt` 형식으로 추가 저장합니다. `GEMINI_API_KEY`가 필요합니다.
 
 ## 요구 사항
 
@@ -16,7 +17,7 @@ YouTube URL이나 로컬 비디오에서 음성을 추출한 뒤, **[whisper.cpp
 - [FFmpeg](https://ffmpeg.org/): `moviepy` / `yt-dlp` 오디오 처리에 필요합니다.
 - **whisper-server (`--convert`)**: [ggml-org/whisper.cpp](https://github.com/ggml-org/whisper.cpp) 저장소의 빌드·실행 안내에 따라 **`whisper-server`**를 띄울 때 반드시 **`--convert`** 플래그를 켜 두세요. 클라이언트는 MP3 등 그대로 올리고, 서버가 업로드 오디오를 인식에 맞게 변환합니다. 모델 경로 등 나머지 옵션은 upstream 문서를 따릅니다. 이 프로젝트는 해당 서버의 **`/inference`** multipart API에 맞춰 동작합니다.
 - **네트워크**: `config.yaml`의 `whisper_cpp.server_url`에서 클라이언트가 서버에 도달할 수 있어야 합니다.
-- **Gemini 퇴고**: `--polish_with`를 쓰면 Google AI API로 레퍼런스를 가져오거나( URL ) Gemini로 호출하므로 해당 구간에서 외부 네트워크가 필요합니다.
+- **Gemini 퇴고·번역**: `--polish_with` 또는 `--translate_to`를 쓰면 Google AI(Gemini) 호출이 있으며, 레퍼런스 URL을 쓰는 경우에는 해당 다운로드에도 네트워크가 필요합니다.
 
 ## STT 서버(whisper-server)
 
@@ -74,6 +75,9 @@ uv run main.py video.mp4 -o output.srt --temp_dir ./tmp_work
 export GEMINI_API_KEY=...   # Google AI Studio 등에서 발급
 uv run main.py video.mp4 -o output.srt --polish_with ./README.md
 uv run main.py video.mp4 -o output.srt --polish_with "https://example.com/doc.txt"
+
+# 영어·폴란드어 번역본 추가 (예: out.srt 옆에 out_en.srt, out_pl.srt)
+uv run main.py video.mp4 -o out.srt --translate_to en,pl
 ```
 
 ### CLI 옵션
@@ -84,6 +88,7 @@ uv run main.py video.mp4 -o output.srt --polish_with "https://example.com/doc.tx
 | `--lang` | 언어 코드. 생략 시 `whisper_cpp.default_language` |
 | `--temp_dir` | 임시 디렉터리를 고정하면 작업 후에도 삭제하지 않음 |
 | `--polish_with` | 레퍼런스 경로 또는 `http(s)` URL. STT 결과를 Gemini로 퇴고해 `-o` 파일을 덮어씀 (`GEMINI_API_KEY` 필요) |
+| `--translate_to` | 쉼표 구분 언어 코드(예: `en,pl`). `stem_<코드>.srt`로 번역본 저장, 원본 `-o`는 유지 (`GEMINI_API_KEY` 필요) |
 
 ## 의존성 요약
 

@@ -1,6 +1,6 @@
 import tempfile
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Optional, Sequence
 
 import requests
 import yaml
@@ -8,6 +8,7 @@ import yt_dlp
 from moviepy import VideoFileClip
 
 from .gemini_srt_polisher import GeminiSrtPolisher
+from .gemini_srt_translator import GeminiSrtTranslator
 
 
 class SubtitleGenerator:
@@ -100,6 +101,7 @@ class SubtitleGenerator:
         *,
         language: Optional[str] = None,
         polish_with: Optional[str] = None,
+        translate_to: Optional[Sequence[str]] = None,
     ):
         """전체 자막 생성 프로세스를 실행합니다."""
         out_p = Path(output_path)
@@ -119,6 +121,7 @@ class SubtitleGenerator:
                 temp_path,
                 language=lang,
                 polish_with=polish_with,
+                translate_to=translate_to,
             )
         else:
             with tempfile.TemporaryDirectory() as td:
@@ -128,6 +131,7 @@ class SubtitleGenerator:
                     Path(td),
                     language=lang,
                     polish_with=polish_with,
+                    translate_to=translate_to,
                 )
 
     def _run_process(
@@ -138,14 +142,28 @@ class SubtitleGenerator:
         *,
         language: str,
         polish_with: Optional[str] = None,
+        translate_to: Optional[Sequence[str]] = None,
     ):
         raw_audio = self.extract_audio(source, temp_path)
         srt_body = self.transcribe_via_server(raw_audio, language)
+        final_srt = srt_body
         print(f"[*] Saving SRT: {out_file}")
-        out_file.write_text(srt_body, encoding="utf-8")
+        out_file.write_text(final_srt, encoding="utf-8")
         if polish_with:
             ref = GeminiSrtPolisher.load_reference(polish_with)
             polisher = GeminiSrtPolisher.from_env()
-            polished = polisher.polish(srt_body, ref)
-            out_file.write_text(polished, encoding="utf-8")
+            final_srt = polisher.polish(srt_body, ref)
+            out_file.write_text(final_srt, encoding="utf-8")
             print(f"[*] Overwrote SRT after Gemini polish: {out_file}")
+        if translate_to:
+            translator = GeminiSrtTranslator.from_env()
+            for code in translate_to:
+                c = code.strip().lower()
+                if not c:
+                    continue
+                out_lang = out_file.with_name(
+                    "".join((out_file.stem, "_", c, out_file.suffix))
+                )
+                translated = translator.translate(final_srt, c)
+                out_lang.write_text(translated, encoding="utf-8")
+                print(f"[*] Wrote translated SRT: {out_lang}")
