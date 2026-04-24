@@ -3,7 +3,7 @@ from typing import Optional
 
 
 class GeminiSrtTranslator:
-    """Gemini API로 SRT 대사만 목표 언어로 번역합니다. 번호·타임코드는 유지합니다."""
+    """Translates only SRT dialogue into the target language using the Gemini API. Indices and timecodes are preserved."""
 
     DEFAULT_MODEL = "gemini-2.5-flash"
     GENERATE_TIMEOUT_MS = 600_000
@@ -31,7 +31,7 @@ class GeminiSrtTranslator:
         key = api_key.strip()
         if not key:
             raise ValueError(
-                "--translate_to 사용 시 환경변수 GEMINI_API_KEY에 Google AI(Gemini) API 키가 필요합니다."
+                "Google AI (Gemini) API key is required in the GEMINI_API_KEY environment variable when using --translate_to."
             )
         self._api_key = key
         self._model = (model or self.DEFAULT_MODEL).strip()
@@ -41,7 +41,7 @@ class GeminiSrtTranslator:
         key = (os.environ.get("GEMINI_API_KEY") or "").strip()
         if not key:
             raise ValueError(
-                "--translate_to 사용 시 환경변수 GEMINI_API_KEY에 Google AI(Gemini) API 키가 필요합니다."
+                "Google AI (Gemini) API key is required in the GEMINI_API_KEY environment variable when using --translate_to."
             )
         return cls(key, model=model)
 
@@ -65,7 +65,7 @@ class GeminiSrtTranslator:
     def translate(self, srt_body: str, target_lang: str) -> str:
         code = target_lang.strip().lower()
         if not code:
-            raise ValueError("번역 언어 코드가 비어 있습니다.")
+            raise ValueError("Translation language code is empty.")
 
         from google import genai
         from google.genai import types
@@ -84,11 +84,11 @@ class GeminiSrtTranslator:
         out = (resp.text or "").strip()
         if not out:
             raise RuntimeError(
-                f"Gemini 번역 응답이 비어 있거나 텍스트가 없습니다 (대상: {code})."
+                f"Gemini translation response is empty or contains no text (target: {code})."
             )
         out = self._strip_markdown_code_fence(out)
         if not out:
-            raise RuntimeError(f"번역 결과가 비어 있습니다 (대상: {code}).")
+            raise RuntimeError(f"Translation result is empty (target: {code}).")
         if not out.endswith("\n"):
             out = "".join((out, "\n"))
         return out

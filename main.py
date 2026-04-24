@@ -3,7 +3,7 @@ import re
 import traceback
 from typing import Optional
 
-from video2srt.subtitle_generator import SubtitleGenerator
+from vid2sub.subtitle_generator import SubtitleGenerator
 
 _TRANSLATE_LANG_RE = re.compile(r"^[a-z0-9-]{2,24}$")
 
@@ -18,7 +18,7 @@ def _parse_translate_to(raw: Optional[str]) -> Optional[list[str]]:
             continue
         if not _TRANSLATE_LANG_RE.fullmatch(c):
             raise ValueError(
-                f"번역 언어 코드는 영문 소문자·숫자·하이픈만 허용합니다(2~24자): {part!r}"
+                f"Translation language codes must only contain lowercase letters, numbers, and hyphens (2-24 chars): {part!r}"
             )
         if c not in out:
             out.append(c)
@@ -27,14 +27,14 @@ def _parse_translate_to(raw: Optional[str]) -> Optional[list[str]]:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="video2srt - Advanced Subtitle Generator"
+        description="vid2sub - Advanced Subtitle Generator"
     )
     parser.add_argument("input", help="YouTube URL or Local Video Path")
     parser.add_argument("-o", "--output", required=True, help="Output SRT Path")
     parser.add_argument(
         "--lang",
         default=None,
-        help="언어 코드 (예: ko). 미지정 시 config.yaml의 whisper_cpp.default_language 사용",
+        help="Language code (e.g., ko). Uses whisper_cpp.default_language in config.yaml if unspecified.",
     )
     parser.add_argument(
         "--temp_dir", help="Explicit temporary directory (for debugging)"
@@ -42,19 +42,19 @@ def main() -> None:
     parser.add_argument(
         "--use_gemini",
         action="store_true",
-        help="Gemini API를 사용하여 퇴고 및 번역을 수행합니다. (GEMINI_API_KEY 필요)",
+        help="Perform polishing and translation using the Gemini API. (Requires GEMINI_API_KEY)",
     )
     parser.add_argument(
         "--polish_with",
         default=None,
         metavar="PATH_OR_URL",
-        help="레퍼런스 문서(로컬 경로 또는 http(s) URL). STT SRT를 퇴고할 때 사용. --use_gemini 미지정 시 llama-server 사용",
+        help="Reference document (local path or http(s) URL). Used for polishing STT SRT. Uses llama-server if --use_gemini is not specified.",
     )
     parser.add_argument(
         "--translate_to",
         default=None,
         metavar="LANGS",
-        help="쉼표로 구분된 목표 언어 코드(예: en,ja). --use_gemini 미지정 시 llama-server 사용",
+        help="Comma-separated target language codes (e.g., en,ja). Uses llama-server if --use_gemini is not specified.",
     )
 
     args = parser.parse_args()

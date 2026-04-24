@@ -6,7 +6,7 @@ import requests
 
 
 class GeminiSrtPolisher:
-    """레퍼런스 문서를 바탕으로 Gemini API로 SRT 본문을 퇴고합니다."""
+    """Polishes SRT content using the Gemini API based on a reference document."""
 
     _PROMPT_HEAD = (
         "Polish Korean subtitle dialogue into natural spoken Korean. Align wording and terminology with the reference provided below the '---' line.\n"
@@ -25,13 +25,13 @@ class GeminiSrtPolisher:
     DEFAULT_MODEL = "gemini-2.5-flash"
     REFERENCE_FETCH_TIMEOUT_SEC = 120
     GENERATE_TIMEOUT_MS = 600_000
-    _REFERENCE_USER_AGENT = "video2srt/0.1 (polish reference)"
+    _REFERENCE_USER_AGENT = "vid2sub/0.1 (polish reference)"
 
     def __init__(self, api_key: str, *, model: Optional[str] = None) -> None:
         key = api_key.strip()
         if not key:
             raise ValueError(
-                "--polish_with 사용 시 환경변수 GEMINI_API_KEY에 Google AI(Gemini) API 키가 필요합니다."
+                "Google AI (Gemini) API key is required in the GEMINI_API_KEY environment variable when using --polish_with."
             )
         self._api_key = key
         self._model = (model or self.DEFAULT_MODEL).strip()
@@ -41,7 +41,7 @@ class GeminiSrtPolisher:
         key = (os.environ.get("GEMINI_API_KEY") or "").strip()
         if not key:
             raise ValueError(
-                "--polish_with 사용 시 환경변수 GEMINI_API_KEY에 Google AI(Gemini) API 키가 필요합니다."
+                "Google AI (Gemini) API key is required in the GEMINI_API_KEY environment variable when using --polish_with."
             )
         return cls(key, model=model)
 
@@ -49,7 +49,7 @@ class GeminiSrtPolisher:
     def load_reference(cls, polish_with: str) -> str:
         s = polish_with.strip()
         if not s:
-            raise ValueError("--polish_with 값이 비어 있습니다.")
+            raise ValueError("--polish_with value is empty.")
         if s.startswith(("http://", "https://")):
             print(f"[*] Fetching polish reference: {s}")
             resp = requests.get(
@@ -63,7 +63,7 @@ class GeminiSrtPolisher:
             return resp.text
         path = Path(s)
         if not path.is_file():
-            raise FileNotFoundError(f"레퍼런스 파일을 찾을 수 없습니다: {path}")
+            raise FileNotFoundError(f"Reference file not found: {path}")
         print(f"[*] Loading polish reference file: {path}")
         return path.read_text(encoding="utf-8")
 
@@ -99,10 +99,10 @@ class GeminiSrtPolisher:
         )
         out = (resp.text or "").strip()
         if not out:
-            raise RuntimeError("Gemini 응답이 비어 있거나 텍스트가 없습니다.")
+            raise RuntimeError("Gemini response is empty or contains no text.")
         out = self._strip_markdown_code_fence(out)
         if not out:
-            raise RuntimeError("퇴고 결과가 비어 있습니다.")
+            raise RuntimeError("Polishing result is empty.")
         if not out.endswith("\n"):
             out = "".join((out, "\n"))
         return out

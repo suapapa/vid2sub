@@ -36,7 +36,7 @@ class SubtitleGenerator:
         self.llamma_server_url = (lc.get("server_url") or "").rstrip("/")
 
         if not self.server_url:
-            raise ValueError("whisper_cpp.server_url 설정이 필요합니다.")
+            raise ValueError("whisper_cpp.server_url configuration is required.")
 
     def _load_config(self, path: str) -> dict:
         p = Path(path)
@@ -49,7 +49,7 @@ class SubtitleGenerator:
             return {}
 
     def extract_audio(self, source: str, temp_dir: Path) -> Path:
-        """YouTube URL 또는 로컬 파일에서 오디오를 추출합니다."""
+        """Extracts audio from a YouTube URL or a local file."""
         if source.startswith(("http://", "https://", "www.", "youtu.be")):
             return self._download_youtube(source, temp_dir)
         return self._extract_from_file(Path(source), temp_dir)
@@ -68,19 +68,19 @@ class SubtitleGenerator:
     def _extract_from_file(self, file_path: Path, temp_dir: Path) -> Path:
         print(f"[*] Extracting audio from local file: {file_path}")
         if not file_path.exists():
-            raise FileNotFoundError(f"파일을 찾을 수 없습니다: {file_path}")
+            raise FileNotFoundError(f"File not found: {file_path}")
 
         output_path = temp_dir / "raw_audio.mp3"
         video = VideoFileClip(str(file_path))
         if not video.audio:
-            raise ValueError("비디오에 오디오 트랙이 없습니다.")
+            raise ValueError("The video has no audio track.")
 
         video.audio.write_audiofile(str(output_path), logger=None)
         video.close()
         return output_path
 
     def transcribe_via_server(self, audio_path: Path, language: str) -> str:
-        """whisper_cpp HTTP 서버에 전체 오디오를 보내 SRT를 받습니다."""
+        """Sends the full audio to the whisper_cpp HTTP server and receives an SRT."""
         inference_url = "".join((self.server_url, "/inference"))
         data = {
             "response_format": "srt",
@@ -106,7 +106,7 @@ class SubtitleGenerator:
         polish_with: Optional[str] = None,
         translate_to: Optional[Sequence[str]] = None,
     ):
-        """전체 자막 생성 프로세스를 실행합니다."""
+        """Runs the full subtitle generation process."""
         out_p = Path(output_path)
         if out_p.exists():
             out_p.unlink()
@@ -171,7 +171,7 @@ class SubtitleGenerator:
             translator = openai_proc
         elif polish_with or translate_to:
             raise ValueError(
-                "퇴고/번역을 위해 --use_gemini 플래그를 사용하거나 config.yaml에 llamma_cpp.server_url 설정이 필요합니다."
+                "The --use_gemini flag or llamma_cpp.server_url in config.yaml is required for polishing/translation."
             )
 
         if polish_with:

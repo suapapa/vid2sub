@@ -2,7 +2,7 @@ import requests
 from typing import Optional
 
 class OpenAiSrtProcessor:
-    """OpenAI 호환 API(llama-server 등)를 사용하여 SRT를 퇴고하거나 번역합니다."""
+    """Polishes or translates SRT using an OpenAI-compatible API (e.g., llama-server)."""
 
     _POLISH_PROMPT_HEAD = (
         "Polish Korean subtitle dialogue into natural spoken Korean. Align wording and terminology with the reference provided below the '---' line.\n"

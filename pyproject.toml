@@ -1,7 +1,7 @@
 [project]
-name = "video2srt"
+name = "vid2sub"
 version = "0.1.0"
-description = "Add your description here"
+description = "CLI for batch processing STT, polishing, and translation from YT or local videos"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
