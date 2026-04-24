@@ -29,4 +29,4 @@ This file serves as a guideline and progress log for AI agents developing the **
 - **FFmpeg**: Used in post-processing for `moviepy` and `yt-dlp`. Must be installed on the system.
 - **STT**: Assumes an HTTP server started with **`whisper-server --convert`**, not a local `whisper-cli` binary. The endpoint is `{server_url}/inference`, and the request body uses `file`, `response_format=srt`, and `language` fields. Audio format conversion is NOT performed by the client.
 - **Language**: If CLI `--lang` is missing, `whisper_cpp.default_language` is used.
-- **Subcommands**: Use `create` for generating subtitles from video/URL and `translate` for translating existing SRT files. Both support `-l` for multiple target languages.
+- **Subcommands**: Use `create` for generating subtitles from video/URL and `translate` for translating existing SRT files. The `translate` subcommand supports `-l` for multiple target languages.

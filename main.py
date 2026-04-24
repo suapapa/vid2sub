@@ -54,12 +54,6 @@ def main() -> None:
         metavar="PATH_OR_URL",
         help="Reference document (local path or http(s) URL). Used for polishing STT SRT. Uses llama-server if --use_gemini is not specified.",
     )
-    create_parser.add_argument(
-        "-l", "--translate_to",
-        default=None,
-        metavar="LANGS",
-        help="Comma-separated target language codes (e.g., en,ja). Uses llama-server if --use_gemini is not specified.",
-    )
 
     # 'translate' subcommand
     translate_parser = subparsers.add_parser("translate", help="Translate existing subtitles")
@@ -85,7 +79,6 @@ def main() -> None:
     try:
         gen = SubtitleGenerator()
         if args.command == "create":
-            translate_langs = _parse_translate_to(args.translate_to)
             gen.process(
                 args.input,
                 args.output,
@@ -93,7 +86,6 @@ def main() -> None:
                 language=args.lang,
                 use_gemini=args.use_gemini,
                 polish_with=args.polish_with,
-                translate_to=translate_langs,
             )
         elif args.command == "translate":
             translate_langs = _parse_translate_to(args.langs)

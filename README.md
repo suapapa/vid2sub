@@ -1,5 +1,7 @@
 # VID2SUB : Automated Subtitle Creator for Local Videos and YouTube
 
+![vid2sub demo](_asset/vid2sub.gif)
+
 A CLI tool that extracts audio from YouTube URLs or local videos, sends the full audio to a **`whisper-server`** (from **[whisper.cpp](https://github.com/ggml-org/whisper.cpp)**) HTTP endpoint, and saves the received SRT. It sends the entire audio at once without splitting by silence.
 
 ## Key Features
@@ -9,7 +11,7 @@ A CLI tool that extracts audio from YouTube URLs or local videos, sends the full
 - **Upload**: Sends the extracted MP3 directly to the `/inference` endpoint. Format conversion is handled on the **server-side** (`whisper-server --convert`).
 - **Subtitles**: Writes the SRT body returned by the server directly to the output file.
 - **Polishing (Optional)**: Refines generated SRTs for mistranslations and typos using a project reference (local file or URL) via `create --polish_with`. By default, it uses `llama-server` (OpenAI-compatible), or **Google Gemini** when the `--use_gemini` flag is provided.
-- **Translation**: Translates SRT files into target languages (comma-separated codes). This is available both during generation (using `create -l en,pl`) or for existing files (using `translate -l en,pl`). Similarly, it defaults to `llama-server` and supports Gemini.
+- **Translation**: Translates SRT files into target languages (comma-separated codes) using the `translate` subcommand. Similarly, it defaults to `llama-server` and supports Gemini.
 
 ## Requirements
 
@@ -67,16 +69,9 @@ uv run main.py create "https://www.youtube.com/watch?v=..." -o output.srt
 # Local File → SRT
 uv run main.py create video.mp4 -o output.srt
 
-# Override Language
-uv run main.py create video.mp4 -o output.srt --lang ko
-
-# Polish SRT using a reference document
-uv run main.py create video.mp4 -o output.srt --polish_with ./README.md
-
-# Polish and Translate using Gemini
+# Polish using Gemini
 export GEMINI_API_KEY=...
 uv run main.py create video.mp4 -o output.srt --use_gemini --polish_with ./README.md
-uv run main.py create video.mp4 -o output.srt --use_gemini -l en,pl
 
 # Translate existing SRT
 uv run main.py translate -l en,ja,pl output.srt
@@ -92,7 +87,6 @@ uv run main.py translate -l en,ja,pl output.srt
 | | `--temp_dir` | Fixed temporary directory; will not be deleted after processing. |
 | | `--use_gemini` | Use Gemini API for polishing/translation (Requires `GEMINI_API_KEY`). |
 | | `--polish_with` | Path or `http(s)` URL to a reference document. Refines STT results and overwrites the `-o` file. |
-| | `-l`, `--translate_to` | Comma-separated language codes (e.g., `en,pl`). |
 | **translate** | `input` | Input SRT file (Positional) |
 | | `-l`, `--langs` | Comma-separated language codes (Required) |
 | | `--use_gemini` | Use Gemini API for translation. |

@@ -104,7 +104,6 @@ class SubtitleGenerator:
         language: Optional[str] = None,
         use_gemini: bool = False,
         polish_with: Optional[str] = None,
-        translate_to: Optional[Sequence[str]] = None,
     ):
         """Runs the full subtitle generation process."""
         out_p = Path(output_path)
@@ -125,7 +124,6 @@ class SubtitleGenerator:
                 language=lang,
                 use_gemini=use_gemini,
                 polish_with=polish_with,
-                translate_to=translate_to,
             )
         else:
             with tempfile.TemporaryDirectory() as td:
@@ -136,7 +134,6 @@ class SubtitleGenerator:
                     language=lang,
                     use_gemini=use_gemini,
                     polish_with=polish_with,
-                    translate_to=translate_to,
                 )
 
     def _run_process(
@@ -148,7 +145,6 @@ class SubtitleGenerator:
         language: str,
         use_gemini: bool = False,
         polish_with: Optional[str] = None,
-        translate_to: Optional[Sequence[str]] = None,
     ):
         raw_audio = self.extract_audio(source, temp_path)
         srt_body = self.transcribe_via_server(raw_audio, language)
@@ -158,20 +154,16 @@ class SubtitleGenerator:
 
         # Initialize processors based on flags
         polisher = None
-        translator = None
 
         if use_gemini:
             from .gemini_srt_polisher import GeminiSrtPolisher
-            from .gemini_srt_translator import GeminiSrtTranslator
             polisher = GeminiSrtPolisher.from_env()
-            translator = GeminiSrtTranslator.from_env()
         elif self.llamma_server_url:
             openai_proc = OpenAiSrtProcessor(self.llamma_server_url)
             polisher = openai_proc
-            translator = openai_proc
-        elif polish_with or translate_to:
+        elif polish_with:
             raise ValueError(
-                "The --use_gemini flag or llamma_cpp.server_url in config.yaml is required for polishing/translation."
+                "The --use_gemini flag or llamma_cpp.server_url in config.yaml is required for polishing."
             )
 
         if polish_with:
@@ -181,20 +173,12 @@ class SubtitleGenerator:
             print(f"[*] Backup original SRT to: {orig_file}")
 
             # polisher is already initialized above
-            if use_gemini:
-                from .gemini_srt_polisher import GeminiSrtPolisher
-                ref = GeminiSrtPolisher.load_reference(polish_with)
-            else:
-                # Reuse GeminiSrtPolisher's load_reference as it's a generic static method
-                from .gemini_srt_polisher import GeminiSrtPolisher
-                ref = GeminiSrtPolisher.load_reference(polish_with)
+            from .gemini_srt_polisher import GeminiSrtPolisher
+            ref = GeminiSrtPolisher.load_reference(polish_with)
 
             final_srt = polisher.polish(srt_body, ref)
             out_file.write_text(final_srt, encoding="utf-8")
             print(f"[*] Overwrote SRT after polish: {out_file}")
-
-        if translate_to:
-            self.translate_srt_file(str(out_file), translate_to, use_gemini=use_gemini)
 
     def translate_srt_file(
         self,
