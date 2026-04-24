@@ -9,11 +9,16 @@ class GeminiSrtPolisher:
     """레퍼런스 문서를 바탕으로 Gemini API로 SRT 본문을 퇴고합니다."""
 
     _PROMPT_HEAD = (
-        "Polish Korean subtitle dialogue into natural spoken Korean; align wording with the reference after '---'.\n"
+        "Polish Korean subtitle dialogue into natural spoken Korean. Align wording and terminology with the reference provided below the '---' line.\n"
         "---\n"
     )
     _PROMPT_TAIL = (
-        "\n\nSRT below: keep cue numbers and timecodes exactly; edit dialogue text only. "
+        "\n\nSRT content follows. Your task: edit ONLY the dialogue text for natural flow. "
+        "DO NOT change any cue numbers, DO NOT change any timecodes, and DO NOT merge or split subtitle entries. "
+        "The output MUST have the EXACT same number of entries as the input.\n\n"
+        "STRICT FORMATTING RULE:\n"
+        "The dialogue text MUST start on a NEW line immediately following the timecode line. "
+        "NEVER append dialogue to the timecode line.\n\n"
         "Reply with the full revised SRT only—no preamble, markdown fences, or notes.\n\n"
     )
 

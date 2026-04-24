@@ -40,16 +40,21 @@ def main() -> None:
         "--temp_dir", help="Explicit temporary directory (for debugging)"
     )
     parser.add_argument(
+        "--use_gemini",
+        action="store_true",
+        help="Gemini API를 사용하여 퇴고 및 번역을 수행합니다. (GEMINI_API_KEY 필요)",
+    )
+    parser.add_argument(
         "--polish_with",
         default=None,
         metavar="PATH_OR_URL",
-        help="레퍼런스 문서(로컬 경로 또는 http(s) URL). STT SRT를 Gemini로 퇴고할 때 사용. GEMINI_API_KEY 필요",
+        help="레퍼런스 문서(로컬 경로 또는 http(s) URL). STT SRT를 퇴고할 때 사용. --use_gemini 미지정 시 llama-server 사용",
     )
     parser.add_argument(
         "--translate_to",
         default=None,
         metavar="LANGS",
-        help="쉼표로 구분된 목표 언어 코드(예: en,ja). 각각 `-o`와 같은 디렉터리에 stem_<코드>.srt 저장. GEMINI_API_KEY 필요",
+        help="쉼표로 구분된 목표 언어 코드(예: en,ja). --use_gemini 미지정 시 llama-server 사용",
     )
 
     args = parser.parse_args()
@@ -62,6 +67,7 @@ def main() -> None:
             args.output,
             args.temp_dir,
             language=args.lang,
+            use_gemini=args.use_gemini,
             polish_with=args.polish_with,
             translate_to=translate_langs,
         )

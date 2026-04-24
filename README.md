@@ -8,8 +8,8 @@ YouTube URL이나 로컬 비디오에서 음성을 추출한 뒤, **[whisper.cpp
 - **로컬 비디오**: `moviepy`로 오디오 트랙을 MP3로 추출합니다.
 - **업로드**: 추출한 MP3를 그대로 `/inference`로 보냅니다. 포맷 변환은 **서버 쪽**(`whisper-server --convert`)에서 처리합니다.
 - **자막**: 서버가 반환하는 SRT 본문을 출력 파일에 그대로 씁니다.
-- **퇴고(선택)**: `--polish_with`로 프로젝트 레퍼런스(로컬 파일 또는 URL)를 주면, 생성된 SRT를 **Google Gemini**로 오역·오탈자를 손봅니다. API 키는 환경변수 `GEMINI_API_KEY`입니다.
-- **번역(선택)**: `--translate_to en,pl`처럼 쉼표로 구분된 언어 코드를 주면, **최종 SRT**(퇴고가 있으면 퇴고 후 본문)를 Gemini로 번역해 `-o`와 같은 디렉터리에 `stem_en.srt`, `stem_pl.srt` 형식으로 추가 저장합니다. `GEMINI_API_KEY`가 필요합니다.
+- **퇴고(선택)**: `--polish_with`로 프로젝트 레퍼런스(로컬 파일 또는 URL)를 주면, 생성된 SRT의 오역·오탈자를 손봅니다. 기본적으로 `llama-server`(OpenAI 호환)를 사용하며, `--use_gemini` 플래그 사용 시 **Google Gemini**를 사용합니다.
+- **번역(선택)**: `--translate_to en,pl`처럼 쉼표로 구분된 언어 코드를 주면, **최종 SRT**를 번역해 추가 저장합니다. 마찬가지로 기본은 `llama-server`, 선택 시 Gemini를 사용합니다.
 
 ## 요구 사항
 
@@ -17,7 +17,7 @@ YouTube URL이나 로컬 비디오에서 음성을 추출한 뒤, **[whisper.cpp
 - [FFmpeg](https://ffmpeg.org/): `moviepy` / `yt-dlp` 오디오 처리에 필요합니다.
 - **whisper-server (`--convert`)**: [ggml-org/whisper.cpp](https://github.com/ggml-org/whisper.cpp) 저장소의 빌드·실행 안내에 따라 **`whisper-server`**를 띄울 때 반드시 **`--convert`** 플래그를 켜 두세요. 클라이언트는 MP3 등 그대로 올리고, 서버가 업로드 오디오를 인식에 맞게 변환합니다. 모델 경로 등 나머지 옵션은 upstream 문서를 따릅니다. 이 프로젝트는 해당 서버의 **`/inference`** multipart API에 맞춰 동작합니다.
 - **네트워크**: `config.yaml`의 `whisper_cpp.server_url`에서 클라이언트가 서버에 도달할 수 있어야 합니다.
-- **Gemini 퇴고·번역**: `--polish_with` 또는 `--translate_to`를 쓰면 Google AI(Gemini) 호출이 있으며, 레퍼런스 URL을 쓰는 경우에는 해당 다운로드에도 네트워크가 필요합니다.
+- **LLM 서버 (퇴고·번역)**: 퇴고/번역 기능을 위해 기본적으로 OpenAI 호환 API를 제공하는 **llama-server**가 필요합니다. `config.yaml`의 `llamma_cpp.server_url`을 설정하세요. `--use_gemini`를 사용하는 경우 Google Gemini API 접근이 가능해야 합니다.
 
 ## STT 서버(whisper-server)
 
@@ -40,6 +40,9 @@ YouTube URL이나 로컬 비디오에서 음성을 추출한 뒤, **[whisper.cpp
 whisper_cpp:
   server_url: "http://호스트:포트"   # 끝 슬래시 없이; 실제 요청은 …/inference
   default_language: "auto"          # 예: ko, en. CLI --lang 으로 덮어쓸 수 있음
+
+llamma_cpp:
+  server_url: "http://호스트:포트"   # OpenAI 호환 API 서버 (llama-server 등)
 ```
 
 서버 측은 대략 다음과 같은 multipart 요청을 받는 형태를 가정합니다.
@@ -71,13 +74,13 @@ uv run main.py video.mp4 -o output.srt --lang ko
 # 디버깅: 임시 파일 유지
 uv run main.py video.mp4 -o output.srt --temp_dir ./tmp_work
 
-# 레퍼런스 문서를 참고해 SRT 퇴고 (STT 직후 동일 출력 파일에 덮어씀)
-export GEMINI_API_KEY=...   # Google AI Studio 등에서 발급
+# 레퍼런스 문서를 참고해 SRT 퇴고 (기본적으로 config.yaml의 llama-server 사용)
 uv run main.py video.mp4 -o output.srt --polish_with ./README.md
-uv run main.py video.mp4 -o output.srt --polish_with "https://example.com/doc.txt"
 
-# 영어·폴란드어 번역본 추가 (예: out.srt 옆에 out_en.srt, out_pl.srt)
-uv run main.py video.mp4 -o out.srt --translate_to en,pl
+# Gemini를 사용하여 퇴고 및 번역
+export GEMINI_API_KEY=...
+uv run main.py video.mp4 -o output.srt --use_gemini --polish_with ./README.md
+uv run main.py video.mp4 -o out.srt --use_gemini --translate_to en,pl
 ```
 
 ### CLI 옵션
@@ -87,8 +90,9 @@ uv run main.py video.mp4 -o out.srt --translate_to en,pl
 | `-o`, `--output` | 출력 SRT 경로 (필수) |
 | `--lang` | 언어 코드. 생략 시 `whisper_cpp.default_language` |
 | `--temp_dir` | 임시 디렉터리를 고정하면 작업 후에도 삭제하지 않음 |
-| `--polish_with` | 레퍼런스 경로 또는 `http(s)` URL. STT 결과를 Gemini로 퇴고해 `-o` 파일을 덮어씀 (`GEMINI_API_KEY` 필요) |
-| `--translate_to` | 쉼표 구분 언어 코드(예: `en,pl`). `stem_<코드>.srt`로 번역본 저장, 원본 `-o`는 유지 (`GEMINI_API_KEY` 필요) |
+| `--use_gemini` | Gemini API를 사용하여 퇴고/번역을 수행 (`GEMINI_API_KEY` 필요) |
+| `--polish_with` | 레퍼런스 경로 또는 `http(s)` URL. STT 결과를 퇴고해 `-o` 파일을 덮어씀. (`--use_gemini` 미지정 시 llama-server 사용) |
+| `--translate_to` | 쉼표 구분 언어 코드(예: `en,pl`). `stem_<코드>.srt`로 번역본 저장. (`--use_gemini` 미지정 시 llama-server 사용) |
 
 ## 의존성 요약
 

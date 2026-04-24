@@ -7,8 +7,7 @@ import yaml
 import yt_dlp
 from moviepy import VideoFileClip
 
-from .gemini_srt_polisher import GeminiSrtPolisher
-from .gemini_srt_translator import GeminiSrtTranslator
+from .openai_srt_processor import OpenAiSrtProcessor
 
 
 class SubtitleGenerator:
@@ -32,6 +31,9 @@ class SubtitleGenerator:
         wc = self.config.get("whisper_cpp") or {}
         self.server_url = (wc.get("server_url") or "").rstrip("/")
         self.default_language = wc.get("default_language") or "auto"
+
+        lc = self.config.get("llamma_cpp") or {}
+        self.llamma_server_url = (lc.get("server_url") or "").rstrip("/")
 
         if not self.server_url:
             raise ValueError("whisper_cpp.server_url 설정이 필요합니다.")
@@ -100,6 +102,7 @@ class SubtitleGenerator:
         temp_dir: Optional[str] = None,
         *,
         language: Optional[str] = None,
+        use_gemini: bool = False,
         polish_with: Optional[str] = None,
         translate_to: Optional[Sequence[str]] = None,
     ):
@@ -120,6 +123,7 @@ class SubtitleGenerator:
                 out_p,
                 temp_path,
                 language=lang,
+                use_gemini=use_gemini,
                 polish_with=polish_with,
                 translate_to=translate_to,
             )
@@ -130,6 +134,7 @@ class SubtitleGenerator:
                     out_p,
                     Path(td),
                     language=lang,
+                    use_gemini=use_gemini,
                     polish_with=polish_with,
                     translate_to=translate_to,
                 )
@@ -141,6 +146,7 @@ class SubtitleGenerator:
         temp_path: Path,
         *,
         language: str,
+        use_gemini: bool = False,
         polish_with: Optional[str] = None,
         translate_to: Optional[Sequence[str]] = None,
     ):
@@ -149,14 +155,45 @@ class SubtitleGenerator:
         final_srt = srt_body
         print(f"[*] Saving SRT: {out_file}")
         out_file.write_text(final_srt, encoding="utf-8")
-        if polish_with:
-            ref = GeminiSrtPolisher.load_reference(polish_with)
+
+        # Initialize processors based on flags
+        polisher = None
+        translator = None
+
+        if use_gemini:
+            from .gemini_srt_polisher import GeminiSrtPolisher
+            from .gemini_srt_translator import GeminiSrtTranslator
             polisher = GeminiSrtPolisher.from_env()
+            translator = GeminiSrtTranslator.from_env()
+        elif self.llamma_server_url:
+            openai_proc = OpenAiSrtProcessor(self.llamma_server_url)
+            polisher = openai_proc
+            translator = openai_proc
+        elif polish_with or translate_to:
+            raise ValueError(
+                "퇴고/번역을 위해 --use_gemini 플래그를 사용하거나 config.yaml에 llamma_cpp.server_url 설정이 필요합니다."
+            )
+
+        if polish_with:
+            # Backup original SRT before polishing
+            orig_file = out_file.with_name(f"{out_file.stem}_orig.srt")
+            orig_file.write_text(srt_body, encoding="utf-8")
+            print(f"[*] Backup original SRT to: {orig_file}")
+
+            # polisher is already initialized above
+            if use_gemini:
+                from .gemini_srt_polisher import GeminiSrtPolisher
+                ref = GeminiSrtPolisher.load_reference(polish_with)
+            else:
+                # Reuse GeminiSrtPolisher's load_reference as it's a generic static method
+                from .gemini_srt_polisher import GeminiSrtPolisher
+                ref = GeminiSrtPolisher.load_reference(polish_with)
+
             final_srt = polisher.polish(srt_body, ref)
             out_file.write_text(final_srt, encoding="utf-8")
-            print(f"[*] Overwrote SRT after Gemini polish: {out_file}")
+            print(f"[*] Overwrote SRT after polish: {out_file}")
+
         if translate_to:
-            translator = GeminiSrtTranslator.from_env()
             for code in translate_to:
                 c = code.strip().lower()
                 if not c:
