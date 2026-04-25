@@ -35,14 +35,17 @@ def main() -> None:
     # 'create' subcommand
     create_parser = subparsers.add_parser("create", help="Create subtitles from video/URL")
     create_parser.add_argument("input", help="YouTube URL or Local Video Path")
-    create_parser.add_argument("-o", "--output", required=True, help="Output SRT Path")
+    create_parser.add_argument("-o", "--output", default="output.srt", help="Output SRT Path (default: output.srt)")
     create_parser.add_argument(
-        "--lang",
+        "-l", "--lang",
         default=None,
         help="Language code (e.g., ko). Uses whisper_cpp.default_language in config.yaml if unspecified.",
     )
     create_parser.add_argument(
-        "--temp_dir", help="Explicit temporary directory (for debugging)"
+        "-p", "--polish_with",
+        default=None,
+        metavar="PATH_OR_URL",
+        help="Reference document (local path or http(s) URL). Used for polishing STT SRT.",
     )
     create_parser.add_argument(
         "--use_gemini",
@@ -50,10 +53,7 @@ def main() -> None:
         help="Perform polishing and translation using the Gemini API. (Requires GEMINI_API_KEY)",
     )
     create_parser.add_argument(
-        "--polish_with",
-        default=None,
-        metavar="PATH_OR_URL",
-        help="Reference document (local path or http(s) URL). Used for polishing STT SRT. Uses llama-server if --use_gemini is not specified.",
+        "--temp_dir", help="Explicit temporary directory (for debugging)"
     )
 
     # 'translate' subcommand
