@@ -22,6 +22,7 @@ This file serves as a guideline and progress log for AI agents developing the **
 | Gemini-based SRT Translation (`-l`, `GEMINI_API_KEY`) | ✅ Done | `vid2sub/gemini_srt_translator.py`, Requires `--use_gemini` flag. |
 | OpenAI-Compatible Server Support (llama-server) | ✅ Done | Using `llamma_cpp.server_url` (OpenAI API compatible). |
 | Subcommand Support (`create`, `translate`) | ✅ Done | Separated generation and translation into subcommands. |
+| SRT Preprocessing Step | ✅ Done | Correct typos/grammar and merge redundant entries. Run by default if LLM is available. |
 | LICENSE File Addition | ✅ Done | MIT License |
 
 ## Technical Stack Notes

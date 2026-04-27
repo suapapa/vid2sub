@@ -10,7 +10,10 @@ A CLI tool that extracts audio from YouTube URLs or local videos, sends the full
 - **Local Video**: Extracts audio tracks from local video files as MP3 using `moviepy`.
 - **Upload**: Sends the extracted MP3 directly to the `/inference` endpoint. Format conversion is handled on the **server-side** (`whisper-server --convert`).
 - **Subtitles**: Writes the SRT body returned by the server directly to the output file.
-- **Polishing (Optional)**: Refines generated SRTs for mistranslations and typos using a project reference (local file or URL) via `create --polish_with`. By default, it uses `llama-server` (OpenAI-compatible), or **Google Gemini** when the `--use_gemini` flag is provided.
+- **Polishing (Optional)**: Refines generated SRTs for mistranslations and typos using a project reference (local file or URL) via `create --polish_with`.
+  - **Preprocessing**: If an LLM is available (via `llamma_cpp.server_url` in config or `--use_gemini`), the tool automatically corrects typos, fixes grammar, and merges redundant entries.
+  - **Polishing**: If `--polish_with` is specified, it further refines jargon and terminology based on the provided reference document.
+  - By default, it uses `llama-server` (OpenAI-compatible), or **Google Gemini** when the `--use_gemini` flag is provided.
 - **Translation**: Translates SRT files into target languages (comma-separated codes) using the `translate` subcommand. Similarly, it defaults to `llama-server` and supports Gemini.
 
 ## Requirements
