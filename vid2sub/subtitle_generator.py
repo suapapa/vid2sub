@@ -49,6 +49,28 @@ class SubtitleGenerator:
         except yaml.YAMLError:
             return {}
 
+    @staticmethod
+    def load_reference(polish_with: str) -> str:
+        s = polish_with.strip()
+        if not s:
+            raise ValueError("--polish_with value is empty.")
+        if s.startswith(("http://", "https://")):
+            Logger.info(f"Fetching polish reference: {s}")
+            resp = requests.get(
+                s,
+                timeout=120,
+                headers={"User-Agent": "vid2sub/0.1 (polish reference)"},
+            )
+            resp.raise_for_status()
+            if not resp.encoding:
+                resp.encoding = resp.apparent_encoding or "utf-8"
+            return resp.text
+        path = Path(s)
+        if not path.is_file():
+            raise FileNotFoundError(f"Reference file not found: {path}")
+        Logger.info(f"Loading polish reference file: {path}")
+        return path.read_text(encoding="utf-8")
+
     def extract_audio(self, source: str, temp_dir: Path) -> Path:
         """Extracts audio from a YouTube URL or a local file."""
         if source.startswith(("http://", "https://", "www.", "youtu.be")):
@@ -167,19 +189,22 @@ class SubtitleGenerator:
                 "The --use_gemini flag or llamma_cpp.server_url in config.yaml is required for polishing."
             )
 
-        if polish_with:
-            # Backup original SRT before polishing
+        if polisher:
+            # Backup original SRT before processing
             orig_file = out_file.with_name(f"{out_file.stem}_orig.srt")
             orig_file.write_text(srt_body, encoding="utf-8")
             Logger.info(f"Backup original SRT to: {orig_file}")
 
-            # polisher is already initialized above
-            from .gemini_srt_polisher import GeminiSrtPolisher
-            ref = GeminiSrtPolisher.load_reference(polish_with)
+            # Always run preprocess if polisher is available
+            srt_body = polisher.preprocess(srt_body)
+            final_srt = srt_body
 
-            final_srt = polisher.polish(srt_body, ref)
+            if polish_with:
+                ref = self.load_reference(polish_with)
+                final_srt = polisher.polish(srt_body, ref)
+
             out_file.write_text(final_srt, encoding="utf-8")
-            Logger.success(f"Overwrote SRT after polish: {out_file}")
+            Logger.success(f"Overwrote SRT after LLM processing: {out_file}")
 
     def translate_srt_file(
         self,

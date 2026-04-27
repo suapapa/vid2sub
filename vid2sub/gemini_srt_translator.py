@@ -78,7 +78,7 @@ class GeminiSrtTranslator:
             contents=user_msg,
             config=types.GenerateContentConfig(
                 http_options=types.HttpOptions(timeout=self.GENERATE_TIMEOUT_MS),
-                temperature=0.25,
+                temperature=0.3,
             ),
         )
         out = (resp.text or "").strip()

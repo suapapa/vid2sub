@@ -16,7 +16,6 @@ config.yaml
 _ref/
 tmp/
 .DS_Store
-*.srt
 test_run.sh
 
 # agents
