@@ -47,15 +47,21 @@ class OpenAiSrtProcessor:
         "--- SRT to translate ---\n\n"
     )
 
-    def __init__(self, server_url: str, model: str = "gpt-3.5-turbo"):
-        self.server_url = server_url.rstrip("/")
+    def __init__(
+        self,
+        api_url: str,
+        model: str = "gpt-3.5-turbo",
+        api_key: Optional[str] = None,
+    ):
+        self.api_url = api_url.rstrip("/")
         self.model = model
+        self.api_key = api_key
 
     def _call_api(self, prompt: str, temp: float = 0.3) -> str:
         import json
         import sys
 
-        url = f"{self.server_url}/v1/chat/completions"
+        url = f"{self.api_url}/v1/chat/completions"
         payload = {
             "model": self.model,
             "messages": [
@@ -65,9 +71,12 @@ class OpenAiSrtProcessor:
             "temperature": temp,
             "stream": True,
         }
-        
+        headers = {}
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
+
         Logger.info(f"Calling OpenAI-compatible API at {url} (streaming)...")
-        resp = requests.post(url, json=payload, timeout=600, stream=True)
+        resp = requests.post(url, json=payload, timeout=600, stream=True, headers=headers)
         resp.raise_for_status()
 
         full_content = ""

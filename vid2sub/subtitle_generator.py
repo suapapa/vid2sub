@@ -29,15 +29,18 @@ class SubtitleGenerator:
 
     def __init__(self, config_path: str = "config.yaml"):
         self.config = self._load_config(config_path)
-        wc = self.config.get("whisper_cpp") or {}
-        self.server_url = (wc.get("server_url") or "").rstrip("/")
-        self.default_language = wc.get("default_language") or "auto"
+        stt = self.config.get("stt") or {}
+        self.stt_type = stt.get("type") or "whisper.cpp"
+        self.stt_api_url = (stt.get("api_url") or "").rstrip("/")
+        self.default_language = stt.get("default_language") or "auto"
 
-        lc = self.config.get("llamma_cpp") or {}
-        self.llamma_server_url = (lc.get("server_url") or "").rstrip("/")
+        llm = self.config.get("llm") or {}
+        self.llm_api_url = (llm.get("api_url") or "").rstrip("/")
+        self.llm_api_key = llm.get("api_key") or None
+        self.llm_model = llm.get("model") or "gpt-3.5-turbo"
 
-        if not self.server_url:
-            raise ValueError("whisper_cpp.server_url configuration is required.")
+        if not self.stt_api_url:
+            raise ValueError("stt.api_url configuration is required.")
 
     def _load_config(self, path: str) -> dict:
         p = Path(path)
@@ -103,8 +106,10 @@ class SubtitleGenerator:
         return output_path
 
     def transcribe_via_server(self, audio_path: Path, language: str) -> str:
-        """Sends the full audio to the whisper_cpp HTTP server and receives an SRT."""
-        inference_url = "".join((self.server_url, "/inference"))
+        """Sends the full audio to the STT HTTP server and receives an SRT."""
+        if self.stt_type != "whisper.cpp":
+            raise ValueError(f"Unsupported stt.type: {self.stt_type!r}")
+        inference_url = "".join((self.stt_api_url, "/inference"))
         data = {
             "response_format": "srt",
             "language": language,
@@ -181,12 +186,15 @@ class SubtitleGenerator:
         if use_gemini:
             from .gemini_srt_polisher import GeminiSrtPolisher
             polisher = GeminiSrtPolisher.from_env()
-        elif self.llamma_server_url:
-            openai_proc = OpenAiSrtProcessor(self.llamma_server_url)
-            polisher = openai_proc
+        elif self.llm_api_url:
+            polisher = OpenAiSrtProcessor(
+                self.llm_api_url,
+                model=self.llm_model,
+                api_key=self.llm_api_key,
+            )
         elif polish_with:
             raise ValueError(
-                "The --use_gemini flag or llamma_cpp.server_url in config.yaml is required for polishing."
+                "The --use_gemini flag or llm.api_url in config.yaml is required for polishing."
             )
 
         if polisher:
@@ -223,11 +231,15 @@ class SubtitleGenerator:
         if use_gemini:
             from .gemini_srt_translator import GeminiSrtTranslator
             translator = GeminiSrtTranslator.from_env()
-        elif self.llamma_server_url:
-            translator = OpenAiSrtProcessor(self.llamma_server_url)
+        elif self.llm_api_url:
+            translator = OpenAiSrtProcessor(
+                self.llm_api_url,
+                model=self.llm_model,
+                api_key=self.llm_api_key,
+            )
         else:
             raise ValueError(
-                "The --use_gemini flag or llamma_cpp.server_url in config.yaml is required for translation."
+                "The --use_gemini flag or llm.api_url in config.yaml is required for translation."
             )
 
         for code in translate_to:

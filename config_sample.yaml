@@ -1,5 +1,9 @@
-whisper_cpp:
-  server_url: "http://localhost:8080"
+stt:
+  type: whisper.cpp
+  api_url: "http://localhost:8080"
   default_language: "auto"
-llamma_cpp:
-  server_url: "http://localhost:8081"
+
+llm:
+  api_url: "http://localhost:8081"
+  api_key:
+  model:

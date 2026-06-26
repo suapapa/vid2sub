@@ -39,7 +39,7 @@ def main() -> None:
     create_parser.add_argument(
         "-l", "--lang",
         default=None,
-        help="Language code (e.g., ko). Uses whisper_cpp.default_language in config.yaml if unspecified.",
+        help="Language code (e.g., ko). Uses stt.default_language in config.yaml if unspecified.",
     )
     create_parser.add_argument(
         "-p", "--polish_with",

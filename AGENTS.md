@@ -15,12 +15,12 @@ This file serves as a guideline and progress log for AI agents developing the **
 | Project Structure & Dependency Definition | ✅ Done | Using `pyproject.toml`, `uv` |
 | YouTube URL-based Audio Extraction | ✅ Done | `yt-dlp` → MP3 |
 | Local Video-based Audio Extraction | ✅ Done | `moviepy` → MP3 |
-| STT (Speech-to-Text) Integration | ✅ Done | `whisper-server --convert` + `POST .../inference` in `config.yaml`'s `server_url` (multipart, `requests`). Client uploads MP3 only. |
+| STT (Speech-to-Text) Integration | ✅ Done | `whisper-server --convert` + `POST .../inference` at `stt.api_url` (multipart, `requests`). Client uploads MP3 only. |
 | SRT Output | ✅ Done | Save server response (`response_format=srt`) directly. |
-| Configuration File (`config.yaml`) Integration | ✅ Done | `server_url`, `default_language` (`pyyaml`) |
+| Configuration File (`config.yaml`) Integration | ✅ Done | `stt.api_url`, `stt.default_language`, `llm.api_url`, `llm.model`, `llm.api_key` (`pyyaml`) |
 | Gemini-based SRT Polishing (`--polish_with`, `GEMINI_API_KEY`) | ✅ Done | `google-genai`, reference is local file or URL. Requires `--use_gemini` flag. |
 | Gemini-based SRT Translation (`-l`, `GEMINI_API_KEY`) | ✅ Done | `vid2sub/gemini_srt_translator.py`, Requires `--use_gemini` flag. |
-| OpenAI-Compatible Server Support (llama-server) | ✅ Done | Using `llamma_cpp.server_url` (OpenAI API compatible). |
+| OpenAI-Compatible Server Support (llama-server) | ✅ Done | Using `llm.api_url` (OpenAI API compatible). |
 | Subcommand Support (`create`, `translate`) | ✅ Done | Separated generation and translation into subcommands. |
 | SRT Preprocessing Step | ✅ Done | Correct typos/grammar and merge redundant entries. Run by default if LLM is available. |
 | LICENSE File Addition | ✅ Done | MIT License |
@@ -28,6 +28,6 @@ This file serves as a guideline and progress log for AI agents developing the **
 ## Technical Stack Notes
 
 - **FFmpeg**: Used in post-processing for `moviepy` and `yt-dlp`. Must be installed on the system.
-- **STT**: Assumes an HTTP server started with **`whisper-server --convert`**, not a local `whisper-cli` binary. The endpoint is `{server_url}/inference`, and the request body uses `file`, `response_format=srt`, and `language` fields. Audio format conversion is NOT performed by the client.
-- **Language**: If CLI `--lang` is missing, `whisper_cpp.default_language` is used.
+- **STT**: Assumes an HTTP server started with **`whisper-server --convert`**, not a local `whisper-cli` binary. The endpoint is `{stt.api_url}/inference`, and the request body uses `file`, `response_format=srt`, and `language` fields. Audio format conversion is NOT performed by the client.
+- **Language**: If CLI `--lang` is missing, `stt.default_language` is used.
 - **Subcommands**: Use `create` for generating subtitles from video/URL and `translate` for translating existing SRT files. The `translate` subcommand supports `-l` for multiple target languages.
