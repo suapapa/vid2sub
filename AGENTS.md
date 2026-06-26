@@ -24,6 +24,7 @@ This file serves as a guideline and progress log for AI agents developing the **
 | Subcommand Support (`create`, `translate`) | ✅ Done | Separated generation and translation into subcommands. |
 | SRT Preprocessing Step | ✅ Done | Correct typos/grammar and merge redundant entries. Run by default if LLM is available. |
 | Korean Humanizer Integration | ✅ Done | Auto-applies `.agents/skills/humanizer` for Korean SRT after LLM preprocessing/polishing. |
+| Centralized LLM Prompts (`prompt.yaml`) | ✅ Done | All LLM prompts in `prompt.yaml`; loaded by `vid2sub/prompts.py`. |
 | LICENSE File Addition | ✅ Done | MIT License |
 
 ## Technical Stack Notes
@@ -32,3 +33,4 @@ This file serves as a guideline and progress log for AI agents developing the **
 - **STT**: Assumes an HTTP server started with **`whisper-server --convert`**, not a local `whisper-cli` binary. The endpoint is `{stt.api_url}/inference`, and the request body uses `file`, `response_format=srt`, and `language` fields. Audio format conversion is NOT performed by the client.
 - **Language**: If CLI `--lang` is missing, `stt.default_language` is used.
 - **Subcommands**: Use `create` for generating subtitles from video/URL and `translate` for translating existing SRT files. The `translate` subcommand supports `-l` for multiple target languages.
+- **LLM Prompts**: Stored in `prompt.yaml`. `vid2sub/prompts.py` builds user/system messages for preprocess, polish, translate, and humanize steps.

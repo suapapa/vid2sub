@@ -59,6 +59,12 @@ The server is expected to receive multipart requests with:
 - `response_format`: `srt`
 - `language`: Recognition language (or values allowed by the server)
 
+### LLM Prompts
+
+Preprocessing, polishing, translation, and humanization prompts are defined in **`prompt.yaml`** at the project root. Gemini and OpenAI-compatible backends both read from this file via `vid2sub/prompts.py`. Edit the YAML to tune LLM behavior without changing Python code.
+
+Sections: `preprocess`, `polish`, `translate`, `humanize`, and `openai.system` (system message for chat-completions APIs).
+
 ## Installation
 
 ```bash
