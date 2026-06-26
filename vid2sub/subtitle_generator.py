@@ -7,6 +7,7 @@ import yaml
 import yt_dlp
 from moviepy import VideoFileClip
 
+from .humanizer import should_humanize
 from .logger import Logger
 from .openai_srt_processor import OpenAiSrtProcessor
 
@@ -41,6 +42,20 @@ class SubtitleGenerator:
 
         if not self.stt_api_url:
             raise ValueError("stt.api_url configuration is required.")
+
+    @staticmethod
+    def _maybe_humanize(processor, language: str, srt_body: str) -> str:
+        if not should_humanize(language, srt_body):
+            return srt_body
+        humanize = getattr(processor, "humanize", None)
+        if not callable(humanize):
+            return srt_body
+        try:
+            Logger.info("Applying humanizer skill for Korean subtitle text...")
+            return humanize(srt_body)
+        except FileNotFoundError as exc:
+            Logger.warn(f"Skipping humanizer: {exc}")
+            return srt_body
 
     def _load_config(self, path: str) -> dict:
         p = Path(path)
@@ -211,6 +226,7 @@ class SubtitleGenerator:
                 ref = self.load_reference(polish_with)
                 final_srt = polisher.polish(srt_body, ref)
 
+            final_srt = self._maybe_humanize(polisher, language, final_srt)
             out_file.write_text(final_srt, encoding="utf-8")
             Logger.success(f"Overwrote SRT after LLM processing: {out_file}")
 
@@ -250,5 +266,6 @@ class SubtitleGenerator:
                 "".join((input_p.stem, "_", c, input_p.suffix))
             )
             translated = translator.translate(srt_body, c)
+            translated = self._maybe_humanize(translator, c, translated)
             out_lang.write_text(translated, encoding="utf-8")
             Logger.success(f"Wrote translated SRT: {out_lang}")

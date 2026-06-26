@@ -23,6 +23,7 @@ This file serves as a guideline and progress log for AI agents developing the **
 | OpenAI-Compatible Server Support (llama-server) | ✅ Done | Using `llm.api_url` (OpenAI API compatible). |
 | Subcommand Support (`create`, `translate`) | ✅ Done | Separated generation and translation into subcommands. |
 | SRT Preprocessing Step | ✅ Done | Correct typos/grammar and merge redundant entries. Run by default if LLM is available. |
+| Korean Humanizer Integration | ✅ Done | Auto-applies `.agents/skills/humanizer` for Korean SRT after LLM preprocessing/polishing. |
 | LICENSE File Addition | ✅ Done | MIT License |
 
 ## Technical Stack Notes

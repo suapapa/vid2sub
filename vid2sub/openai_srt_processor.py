@@ -1,5 +1,7 @@
 import requests
 from typing import Optional
+
+from .humanizer import build_humanize_prompt
 from .logger import Logger
 
 class OpenAiSrtProcessor:
@@ -155,6 +157,14 @@ class OpenAiSrtProcessor:
         Logger.info(f"Polishing SRT using llama-server...")
         prompt = f"{self._POLISH_PROMPT_HEAD}{reference_text}{self._POLISH_PROMPT_TAIL}{srt_body}"
         out = self._call_api(prompt, temp=0.4)
+        if not out.endswith("\n"):
+            out += "\n"
+        return out
+
+    def humanize(self, srt_body: str) -> str:
+        Logger.info("Humanizing Korean SRT using humanizer skill...")
+        prompt = build_humanize_prompt(srt_body)
+        out = self._call_api(prompt, temp=0.3)
         if not out.endswith("\n"):
             out += "\n"
         return out
