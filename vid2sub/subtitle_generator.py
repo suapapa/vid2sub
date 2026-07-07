@@ -71,6 +71,20 @@ class SubtitleGenerator:
             Logger.warn(f"Skipping humanizer: {exc}")
             return srt_body
 
+    @staticmethod
+    def _dump_stage(temp_path: Optional[Path], name: str, body: str) -> None:
+        """Persists an intermediate SRT stage into the temp directory."""
+        if not temp_path:
+            return
+        try:
+            stages_dir = Path(temp_path) / "stages"
+            stages_dir.mkdir(parents=True, exist_ok=True)
+            stage_file = stages_dir / name
+            stage_file.write_text(body, encoding="utf-8")
+            Logger.info(f"Saved stage SRT: {stage_file}")
+        except OSError as exc:
+            Logger.warn(f"Could not save stage SRT {name}: {exc}")
+
     def _load_config(self, path: str) -> dict:
         p = Path(path)
         if not p.is_file():
@@ -251,6 +265,7 @@ class SubtitleGenerator:
             audio_for_stt = self.isolate_vocals(raw_audio, temp_path)
         srt_body = self.transcribe_via_server(audio_for_stt, language)
         final_srt = srt_body
+        self._dump_stage(temp_path, "10_stt.srt", srt_body)
         Logger.info(f"Saving SRT: {out_file}")
         out_file.write_text(final_srt, encoding="utf-8")
 
@@ -280,15 +295,20 @@ class SubtitleGenerator:
 
             if preprocess:
                 srt_body = polisher.preprocess(srt_body)
+                self._dump_stage(temp_path, "20_preprocess.srt", srt_body)
             final_srt = srt_body
 
             if polish_with:
                 ref = self.load_reference(polish_with)
                 final_srt = polisher.polish(srt_body, ref)
+                self._dump_stage(temp_path, "30_polish.srt", final_srt)
 
-            final_srt = self._maybe_humanize(
+            humanized = self._maybe_humanize(
                 polisher, language, final_srt, enabled=humanize
             )
+            if humanized != final_srt:
+                self._dump_stage(temp_path, "40_humanize.srt", humanized)
+            final_srt = humanized
             out_file.write_text(final_srt, encoding="utf-8")
             Logger.success(f"Overwrote SRT after LLM processing: {out_file}")
 
@@ -298,12 +318,14 @@ class SubtitleGenerator:
         translate_to: Sequence[str],
         use_gemini: bool = False,
         humanize: bool = False,
+        temp_dir: Optional[str] = None,
     ):
         """Translates an existing SRT file into multiple languages."""
         input_p = Path(input_srt_path)
         if not input_p.exists():
             raise FileNotFoundError(f"SRT file not found: {input_srt_path}")
 
+        temp_path = Path(temp_dir) if temp_dir else None
         srt_body = input_p.read_text(encoding="utf-8")
 
         translator = None
@@ -330,8 +352,12 @@ class SubtitleGenerator:
                 "".join((input_p.stem, "_", c, input_p.suffix))
             )
             translated = translator.translate(srt_body, c)
-            translated = self._maybe_humanize(
+            self._dump_stage(temp_path, f"50_translate_{c}.srt", translated)
+            humanized = self._maybe_humanize(
                 translator, c, translated, enabled=humanize
             )
+            if humanized != translated:
+                self._dump_stage(temp_path, f"60_humanize_{c}.srt", humanized)
+            translated = humanized
             out_lang.write_text(translated, encoding="utf-8")
             Logger.success(f"Wrote translated SRT: {out_lang}")

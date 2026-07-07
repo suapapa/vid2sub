@@ -119,7 +119,7 @@ uv run main.py video.mp4 -o output.srt --use_gemini --polish_with ./README.md
 | `--isolate-vocals` / `--no-isolate-vocals` | Enable/disable vocal isolation (demucs) before STT. Overrides `audio.isolate_vocals` in config. |
 | `--preprocess` | Enable LLM preprocessing (typo/grammar fixes). Off by default; requires an available LLM. |
 | `--humanize` | Enable Korean humanizer after LLM steps. Off by default; applies to Korean subtitles. |
-| `--temp_dir` | Fixed temporary directory; will not be deleted after processing. |
+| `--temp_dir` | Fixed temporary directory; not deleted after processing. Per-stage SRTs (STT, preprocess, polish, humanize, translate) are saved under `<temp_dir>/stages/`. |
 | `--use_gemini` | Use Gemini API for polishing/translation (Requires `GEMINI_API_KEY`). |
 | `-p`, `--polish_with` | Path or `http(s)` URL to a reference document. Refines STT results and overwrites the `-o` file. |
 

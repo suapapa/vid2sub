@@ -95,7 +95,8 @@ def main() -> None:
         help="Apply Korean humanizer after LLM steps. Off by default.",
     )
     parser.add_argument(
-        "--temp_dir", help="Explicit temporary directory (for debugging)"
+        "--temp_dir",
+        help="Explicit temporary directory (kept, not deleted). Intermediate per-stage SRTs are saved under <temp_dir>/stages/.",
     )
 
     args = parser.parse_args()
@@ -122,6 +123,7 @@ def main() -> None:
                 translate_to=translate_langs,
                 use_gemini=args.use_gemini,
                 humanize=humanize,
+                temp_dir=args.temp_dir,
             )
         else:
             gen.process(
@@ -142,6 +144,7 @@ def main() -> None:
                     translate_to=translate_langs,
                     use_gemini=args.use_gemini,
                     humanize=humanize,
+                    temp_dir=args.temp_dir,
                 )
 
         Logger.success("Done!")
