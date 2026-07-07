@@ -44,9 +44,12 @@ Place the following in `config.yaml` (see `config_sample.yaml` for a template):
 
 ```yaml
 stt:
+  # whisper.cpp -> requests {api_url}/inference (whisper-server --convert)
+  # openai      -> requests {api_url}/audio/transcriptions (OpenAI-compatible, e.g. Bifrost)
   type: whisper.cpp
-  api_url: "http://host:port"   # No trailing slash; requests will be sent to .../inference
+  api_url: "http://host:port"   # No trailing slash. whisper.cpp: base host; openai: include /v1
   api_key:                        # Optional; sent as Bearer token if set
+  model: whisper-1              # Used by the openai type as the transcription model
   default_language: "auto"      # e.g., ko, en. Can be overridden with CLI --lang
 
 llm:
@@ -108,6 +111,13 @@ uv run main.py translate -l en,ja,pl output.srt
 ## Dependency Summary
 
 Based on `pyproject.toml`: `requests`, `yt-dlp`, `moviepy`, `pyyaml`, `google-genai`, etc. Refer to the repository's lock/metadata for specific versions.
+
+## Cheat Sheet
+
+Download an Youtube video with best quality:
+```sh
+yt-dlp -f bestvideo+bestaudio --merge-output-format mp4 "https://www.youtube.com/watch?v=..."
+```
 
 ## License
 

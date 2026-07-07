@@ -30,7 +30,10 @@ This file serves as a guideline and progress log for AI agents developing the **
 ## Technical Stack Notes
 
 - **FFmpeg**: Used in post-processing for `moviepy` and `yt-dlp`. Must be installed on the system.
-- **STT**: Assumes an HTTP server started with **`whisper-server --convert`**, not a local `whisper-cli` binary. The endpoint is `{stt.api_url}/inference`, and the request body uses `file`, `response_format=srt`, and `language` fields. Audio format conversion is NOT performed by the client. If `stt.api_key` is set, it is sent as a Bearer token.
+- **STT**: Endpoint selection depends on `stt.type`:
+  - `whisper.cpp`: POSTs to `{stt.api_url}/inference` (server started with **`whisper-server --convert`**). Body uses `file`, `response_format=srt`, `language`.
+  - `openai`: POSTs to `{stt.api_url}/audio/transcriptions` (OpenAI-compatible gateway, e.g. Bifrost). Body additionally includes `model` (from `stt.model`).
+  Audio format conversion is NOT performed by the client. If `stt.api_key` is set, it is sent as a Bearer token.
 - **Language**: If CLI `--lang` is missing, `stt.default_language` is used.
 - **Subcommands**: Use `create` for generating subtitles from video/URL and `translate` for translating existing SRT files. The `translate` subcommand supports `-l` for multiple target languages.
 - **LLM Prompts**: Stored in `prompt.yaml`. `vid2sub/prompts.py` builds user/system messages for preprocess, polish, translate, and humanize steps.

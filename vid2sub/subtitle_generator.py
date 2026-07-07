@@ -34,6 +34,7 @@ class SubtitleGenerator:
         self.stt_type = stt.get("type") or "whisper.cpp"
         self.stt_api_url = (stt.get("api_url") or "").rstrip("/")
         self.stt_api_key = stt.get("api_key") or None
+        self.stt_model = stt.get("model") or "whisper-1"
         self.default_language = stt.get("default_language") or "auto"
 
         llm = self.config.get("llm") or {}
@@ -123,14 +124,21 @@ class SubtitleGenerator:
 
     def transcribe_via_server(self, audio_path: Path, language: str) -> str:
         """Sends the full audio to the STT HTTP server and receives an SRT."""
-        if self.stt_type != "whisper.cpp":
+        if self.stt_type == "whisper.cpp":
+            inference_url = f"{self.stt_api_url}/inference"
+            data = {
+                "response_format": "srt",
+                "language": language,
+            }
+        elif self.stt_type == "openai":
+            inference_url = f"{self.stt_api_url}/audio/transcriptions"
+            data = {
+                "model": self.stt_model,
+                "response_format": "srt",
+                "language": language,
+            }
+        else:
             raise ValueError(f"Unsupported stt.type: {self.stt_type!r}")
-        inference_url = f"{self.stt_api_url}/audio/transcriptions"
-        data = {
-            "model": "whisper-1",
-            "response_format": "srt",
-            "language": language,
-        }
         Logger.info(f"POST {inference_url} ({audio_path.name}, language={language})...")
         headers = {}
         if self.stt_api_key:
