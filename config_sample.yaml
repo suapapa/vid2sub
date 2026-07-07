@@ -11,3 +11,12 @@ llm:
   api_url: "http://localhost:8081/v1"
   api_key: sk-1234
   model: smart-model
+
+audio:
+  # Separate clean vocals from background music/SFX (demucs) before STT.
+  # Improves transcription when the source has music or sound effects.
+  # Requires the optional dependency: uv sync --extra separate
+  isolate_vocals: false
+  separator_model: htdemucs # demucs model (e.g. htdemucs, htdemucs_ft, mdx_extra)
+  separator_device: # cpu | cuda | mps | (empty = auto-detect)
+  separator_output_mp3: true # keep stems as mp3 (smaller) instead of wav

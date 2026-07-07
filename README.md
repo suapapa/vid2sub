@@ -8,6 +8,7 @@ A CLI tool that extracts audio from YouTube URLs or local videos, sends the full
 
 - **YouTube**: Downloads best audio using `yt-dlp` and extracts as MP3.
 - **Local Video**: Extracts audio tracks from local video files as MP3 using `moviepy`.
+- **Vocal Isolation (Optional)**: When the source contains background music or sound effects that degrade transcription, `demucs` can separate clean vocals before STT. Enable with `create --isolate-vocals` or `audio.isolate_vocals: true` in config.
 - **Upload**: Sends the extracted MP3 directly to the `/inference` endpoint. Format conversion is handled on the **server-side** (`whisper-server --convert`).
 - **Subtitles**: Writes the SRT body returned by the server directly to the output file.
 - **Polishing (Optional)**: Refines generated SRTs for mistranslations and typos using a project reference (local file or URL) via `create --polish_with`.
@@ -21,6 +22,7 @@ A CLI tool that extracts audio from YouTube URLs or local videos, sends the full
 
 - Python 3.12 or higher
 - [FFmpeg](https://ffmpeg.org/): Required for `moviepy` / `yt-dlp` audio processing.
+- **Demucs (Optional, for vocal isolation)**: Only needed when using `--isolate-vocals` / `audio.isolate_vocals`. Install the optional dependency group with `uv sync --extra separate`. This pulls in PyTorch, so it is large; a GPU (CUDA/MPS) is recommended but not required.
 - **whisper-server (`--convert`)**: Follow the build and run instructions in the [ggml-org/whisper.cpp](https://github.com/ggml-org/whisper.cpp) repository. You **must** enable the **`--convert`** flag when starting **`whisper-server`**. This allows the server to convert uploaded audio (like MP3) to the required format. This project interacts with the server's **`/inference`** multipart API.
 - **Network**: The client must be able to reach the server at `stt.api_url` specified in `config.yaml`.
 - **LLM Server (Polishing/Translation)**: Polishing and translation features require **llama-server** (providing an OpenAI-compatible API) by default. Set `llm.api_url` (and optionally `llm.model`, `llm.api_key`) in `config.yaml`. If using `--use_gemini`, you must have access to the Google Gemini API.
@@ -56,6 +58,12 @@ llm:
   api_url: "http://host:port/v1"   # OpenAI-compatible API base (e.g., llama-server)
   api_key:                        # Optional; sent as Bearer token if set
   model:                          # Optional; defaults to gpt-3.5-turbo
+
+audio:
+  isolate_vocals: false         # Separate vocals from music/SFX (demucs) before STT
+  separator_model: htdemucs     # demucs model (htdemucs, htdemucs_ft, mdx_extra, ...)
+  separator_device:             # cpu | cuda | mps | (empty = auto-detect)
+  separator_output_mp3: true    # keep stems as mp3 instead of wav
 ```
 
 The server is expected to receive multipart requests with:
@@ -86,6 +94,9 @@ uv run main.py create "https://www.youtube.com/watch?v=..." -o output.srt
 # Local File → SRT
 uv run main.py create video.mp4 -o output.srt
 
+# Isolate vocals first (source has music/SFX; requires `uv sync --extra separate`)
+uv run main.py create video.mp4 -o output.srt --isolate-vocals
+
 # Polish using Gemini
 export GEMINI_API_KEY=...
 uv run main.py create video.mp4 -o output.srt --use_gemini --polish_with ./README.md
@@ -101,6 +112,7 @@ uv run main.py translate -l en,ja,pl output.srt
 | **create** | `input` | YouTube URL or Local Video Path (Positional) |
 | | `-o`, `--output` | Path to output SRT file (Required) |
 | | `--lang` | Language code. Uses `stt.default_language` if omitted. |
+| | `--isolate-vocals` / `--no-isolate-vocals` | Enable/disable vocal isolation (demucs) before STT. Overrides `audio.isolate_vocals` in config. |
 | | `--temp_dir` | Fixed temporary directory; will not be deleted after processing. |
 | | `--use_gemini` | Use Gemini API for polishing/translation (Requires `GEMINI_API_KEY`). |
 | | `--polish_with` | Path or `http(s)` URL to a reference document. Refines STT results and overwrites the `-o` file. |
@@ -114,9 +126,14 @@ Based on `pyproject.toml`: `requests`, `yt-dlp`, `moviepy`, `pyyaml`, `google-ge
 
 ## Cheat Sheet
 
+Download audio track of an Youtube video with best quality:
+```sh
+uvx run yt-dlp -f bestaudio --audio-format mp3 "https://www.youtube.com/watch?v=..."
+```
+
 Download an Youtube video with best quality:
 ```sh
-yt-dlp -f bestvideo+bestaudio --merge-output-format mp4 "https://www.youtube.com/watch?v=..."
+uvx run yt-dlp -f bestvideo+bestaudio --merge-output-format mp4 "https://www.youtube.com/watch?v=..."
 ```
 
 ## License

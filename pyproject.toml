@@ -11,3 +11,10 @@ dependencies = [
     "yt-dlp>=2026.3.17",
     "google-genai>=1.73.1",
 ]
+
+[project.optional-dependencies]
+# Vocal isolation (separate speech from music/SFX) before STT.
+# Heavy (PyTorch); install only when needed: `uv sync --extra separate`
+separate = [
+    "demucs>=4.0.1",
+]

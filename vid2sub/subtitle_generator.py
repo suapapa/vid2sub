@@ -42,6 +42,14 @@ class SubtitleGenerator:
         self.llm_api_key = llm.get("api_key") or None
         self.llm_model = llm.get("model") or "gpt-3.5-turbo"
 
+        audio = self.config.get("audio") or {}
+        self.isolate_vocals_default = bool(audio.get("isolate_vocals") or False)
+        self.separator_model = audio.get("separator_model") or "htdemucs"
+        self.separator_device = audio.get("separator_device") or None
+        self.separator_output_mp3 = audio.get("separator_output_mp3")
+        if self.separator_output_mp3 is None:
+            self.separator_output_mp3 = True
+
         if not self.stt_api_url:
             raise ValueError("stt.api_url configuration is required.")
 
@@ -122,6 +130,17 @@ class SubtitleGenerator:
         video.close()
         return output_path
 
+    def isolate_vocals(self, audio_path: Path, temp_dir: Path) -> Path:
+        """Separates clean vocals from background music/SFX before STT."""
+        from .vocal_isolator import VocalIsolator
+
+        isolator = VocalIsolator(
+            model=self.separator_model,
+            device=self.separator_device,
+            output_mp3=bool(self.separator_output_mp3),
+        )
+        return isolator.isolate(audio_path, temp_dir)
+
     def transcribe_via_server(self, audio_path: Path, language: str) -> str:
         """Sends the full audio to the STT HTTP server and receives an SRT."""
         if self.stt_type == "whisper.cpp":
@@ -164,6 +183,7 @@ class SubtitleGenerator:
         language: Optional[str] = None,
         use_gemini: bool = False,
         polish_with: Optional[str] = None,
+        isolate_vocals: Optional[bool] = None,
     ):
         """Runs the full subtitle generation process."""
         out_p = Path(output_path)
@@ -173,6 +193,10 @@ class SubtitleGenerator:
         lang = (language or self.default_language).strip()
         if not lang:
             lang = "auto"
+
+        do_isolate = (
+            self.isolate_vocals_default if isolate_vocals is None else isolate_vocals
+        )
 
         if temp_dir:
             temp_path = Path(temp_dir)
@@ -184,6 +208,7 @@ class SubtitleGenerator:
                 language=lang,
                 use_gemini=use_gemini,
                 polish_with=polish_with,
+                isolate_vocals=do_isolate,
             )
         else:
             with tempfile.TemporaryDirectory() as td:
@@ -194,6 +219,7 @@ class SubtitleGenerator:
                     language=lang,
                     use_gemini=use_gemini,
                     polish_with=polish_with,
+                    isolate_vocals=do_isolate,
                 )
 
     def _run_process(
@@ -205,9 +231,13 @@ class SubtitleGenerator:
         language: str,
         use_gemini: bool = False,
         polish_with: Optional[str] = None,
+        isolate_vocals: bool = False,
     ):
         raw_audio = self.extract_audio(source, temp_path)
-        srt_body = self.transcribe_via_server(raw_audio, language)
+        audio_for_stt = raw_audio
+        if isolate_vocals:
+            audio_for_stt = self.isolate_vocals(raw_audio, temp_path)
+        srt_body = self.transcribe_via_server(audio_for_stt, language)
         final_srt = srt_body
         Logger.info(f"Saving SRT: {out_file}")
         out_file.write_text(final_srt, encoding="utf-8")

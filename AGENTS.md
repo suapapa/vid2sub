@@ -15,6 +15,7 @@ This file serves as a guideline and progress log for AI agents developing the **
 | Project Structure & Dependency Definition | ✅ Done | Using `pyproject.toml`, `uv` |
 | YouTube URL-based Audio Extraction | ✅ Done | `yt-dlp` → MP3 |
 | Local Video-based Audio Extraction | ✅ Done | `moviepy` → MP3 |
+| Vocal Isolation (pre-STT) | ✅ Done | Optional `demucs` (`--two-stems=vocals`) step in `vid2sub/vocal_isolator.py`. Enabled via `--isolate-vocals` or `audio.isolate_vocals`. Optional dep group `separate`. |
 | STT (Speech-to-Text) Integration | ✅ Done | `whisper-server --convert` + `POST .../inference` at `stt.api_url` (multipart, `requests`). Client uploads MP3 only. |
 | SRT Output | ✅ Done | Save server response (`response_format=srt`) directly. |
 | Configuration File (`config.yaml`) Integration | ✅ Done | `stt.api_url`, `stt.api_key`, `stt.default_language`, `llm.api_url`, `llm.model`, `llm.api_key` (`pyyaml`) |
@@ -30,6 +31,7 @@ This file serves as a guideline and progress log for AI agents developing the **
 ## Technical Stack Notes
 
 - **FFmpeg**: Used in post-processing for `moviepy` and `yt-dlp`. Must be installed on the system.
+- **Vocal Isolation**: Optional `demucs` (PyTorch) dependency, invoked as a subprocess (`python -m demucs --two-stems=vocals`). Runs between `extract_audio` and `transcribe_via_server`. Installed via the optional `separate` extra (`uv sync --extra separate`). Config keys: `audio.isolate_vocals`, `audio.separator_model`, `audio.separator_device`, `audio.separator_output_mp3`.
 - **STT**: Endpoint selection depends on `stt.type`:
   - `whisper.cpp`: POSTs to `{stt.api_url}/inference` (server started with **`whisper-server --convert`**). Body uses `file`, `response_format=srt`, `language`.
   - `openai`: POSTs to `{stt.api_url}/audio/transcriptions` (OpenAI-compatible gateway, e.g. Bifrost). Body additionally includes `model` (from `stt.model`).

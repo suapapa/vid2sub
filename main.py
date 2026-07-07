@@ -53,6 +53,19 @@ def main() -> None:
         help="Perform polishing and translation using the Gemini API. (Requires GEMINI_API_KEY)",
     )
     create_parser.add_argument(
+        "--isolate-vocals",
+        dest="isolate_vocals",
+        action="store_true",
+        default=None,
+        help="Separate vocals from background music/SFX with demucs before STT. Overrides audio.isolate_vocals in config.yaml.",
+    )
+    create_parser.add_argument(
+        "--no-isolate-vocals",
+        dest="isolate_vocals",
+        action="store_false",
+        help="Disable vocal isolation even if enabled in config.yaml.",
+    )
+    create_parser.add_argument(
         "--temp_dir", help="Explicit temporary directory (for debugging)"
     )
 
@@ -87,6 +100,7 @@ def main() -> None:
                 language=args.lang,
                 use_gemini=args.use_gemini,
                 polish_with=args.polish_with,
+                isolate_vocals=args.isolate_vocals,
             )
         elif args.command == "translate":
             translate_langs = _parse_translate_to(args.langs)
