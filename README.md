@@ -53,6 +53,8 @@ stt:
   api_key:                        # Optional; sent as Bearer token if set
   model: whisper-1              # Used by the openai type as the transcription model
   default_language: "auto"      # e.g., ko, en. Can be overridden with CLI --lang
+  condition_on_previous_text: false  # Disable previous-window context (reduces hallucination loops)
+  temperature: [0.0, 0.2, 0.4, 0.6]  # Retry temperatures; whisper.cpp uses temperature + temperature_inc
 
 llm:
   api_url: "http://host:port/v1"   # OpenAI-compatible API base (e.g., llama-server)
@@ -70,6 +72,8 @@ The server is expected to receive multipart requests with:
 - `file`: Audio file
 - `response_format`: `srt`
 - `language`: Recognition language (or values allowed by the server)
+- `temperature` / `temperature_inc` (whisper.cpp): Decoding temperature and increment for fallback retries (default: `0.0` / `0.2`, equivalent to Python `temperature=(0.0, 0.2, 0.4, 0.6)`)
+- `condition_on_previous_text` (openai-compatible gateways): Set to `false` by default to avoid context carry-over between windows
 
 ### LLM Prompts
 

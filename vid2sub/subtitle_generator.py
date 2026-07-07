@@ -190,7 +190,29 @@ class SubtitleGenerator:
                 timeout=24 * 3600,
             )
         resp.raise_for_status()
-        return resp.text
+        return self._extract_srt(resp)
+
+    @staticmethod
+    def _extract_srt(resp: requests.Response) -> str:
+        """Extracts the SRT body from the STT response.
+
+        Some servers return the SRT wrapped in a JSON object ({"text": "..."});
+        others return the raw SRT text. Prefer the JSON `text` field when present,
+        otherwise fall back to the raw response body.
+        """
+        raw = resp.text
+        content_type = (resp.headers.get("Content-Type") or "").lower()
+        looks_json = "json" in content_type or raw.lstrip().startswith("{")
+        if looks_json:
+            try:
+                payload = resp.json()
+            except ValueError:
+                return raw
+            if isinstance(payload, dict):
+                text = payload.get("text")
+                if isinstance(text, str) and text.strip():
+                    return text
+        return raw
 
     def process(
         self,

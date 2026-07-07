@@ -6,6 +6,10 @@ stt:
   api_key:
   model: whisper-1
   default_language: "auto"
+  # Reduce hallucination / context carry-over (Python whisper equivalents):
+  condition_on_previous_text: false
+  temperature: [0.0, 0.2, 0.4, 0.6]  # whisper.cpp: start + retry increments via temperature_inc
+  # temperature_inc: 0.2              # optional override (whisper.cpp only)
 
 llm:
   api_url: "http://localhost:8081/v1"
