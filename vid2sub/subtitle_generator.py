@@ -54,7 +54,11 @@ class SubtitleGenerator:
             raise ValueError("stt.api_url configuration is required.")
 
     @staticmethod
-    def _maybe_humanize(processor, language: str, srt_body: str) -> str:
+    def _maybe_humanize(
+        processor, language: str, srt_body: str, *, enabled: bool = True
+    ) -> str:
+        if not enabled:
+            return srt_body
         if not should_humanize(language, srt_body):
             return srt_body
         humanize = getattr(processor, "humanize", None)
@@ -184,6 +188,8 @@ class SubtitleGenerator:
         use_gemini: bool = False,
         polish_with: Optional[str] = None,
         isolate_vocals: Optional[bool] = None,
+        preprocess: bool = False,
+        humanize: bool = False,
     ):
         """Runs the full subtitle generation process."""
         out_p = Path(output_path)
@@ -209,6 +215,8 @@ class SubtitleGenerator:
                 use_gemini=use_gemini,
                 polish_with=polish_with,
                 isolate_vocals=do_isolate,
+                preprocess=preprocess,
+                humanize=humanize,
             )
         else:
             with tempfile.TemporaryDirectory() as td:
@@ -220,6 +228,8 @@ class SubtitleGenerator:
                     use_gemini=use_gemini,
                     polish_with=polish_with,
                     isolate_vocals=do_isolate,
+                    preprocess=preprocess,
+                    humanize=humanize,
                 )
 
     def _run_process(
@@ -232,6 +242,8 @@ class SubtitleGenerator:
         use_gemini: bool = False,
         polish_with: Optional[str] = None,
         isolate_vocals: bool = False,
+        preprocess: bool = False,
+        humanize: bool = False,
     ):
         raw_audio = self.extract_audio(source, temp_path)
         audio_for_stt = raw_audio
@@ -260,21 +272,23 @@ class SubtitleGenerator:
                 "The --use_gemini flag or llm.api_url in config.yaml is required for polishing."
             )
 
-        if polisher:
+        if polisher and (preprocess or polish_with or humanize):
             # Backup original SRT before processing
             orig_file = out_file.with_name(f"{out_file.stem}_orig.srt")
             orig_file.write_text(srt_body, encoding="utf-8")
             Logger.info(f"Backup original SRT to: {orig_file}")
 
-            # Always run preprocess if polisher is available
-            srt_body = polisher.preprocess(srt_body)
+            if preprocess:
+                srt_body = polisher.preprocess(srt_body)
             final_srt = srt_body
 
             if polish_with:
                 ref = self.load_reference(polish_with)
                 final_srt = polisher.polish(srt_body, ref)
 
-            final_srt = self._maybe_humanize(polisher, language, final_srt)
+            final_srt = self._maybe_humanize(
+                polisher, language, final_srt, enabled=humanize
+            )
             out_file.write_text(final_srt, encoding="utf-8")
             Logger.success(f"Overwrote SRT after LLM processing: {out_file}")
 
@@ -283,6 +297,7 @@ class SubtitleGenerator:
         input_srt_path: str,
         translate_to: Sequence[str],
         use_gemini: bool = False,
+        humanize: bool = False,
     ):
         """Translates an existing SRT file into multiple languages."""
         input_p = Path(input_srt_path)
@@ -315,6 +330,8 @@ class SubtitleGenerator:
                 "".join((input_p.stem, "_", c, input_p.suffix))
             )
             translated = translator.translate(srt_body, c)
-            translated = self._maybe_humanize(translator, c, translated)
+            translated = self._maybe_humanize(
+                translator, c, translated, enabled=humanize
+            )
             out_lang.write_text(translated, encoding="utf-8")
             Logger.success(f"Wrote translated SRT: {out_lang}")

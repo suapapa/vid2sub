@@ -12,11 +12,11 @@ A CLI tool that extracts audio from YouTube URLs or local videos, sends the full
 - **Upload**: Sends the extracted MP3 directly to the `/inference` endpoint. Format conversion is handled on the **server-side** (`whisper-server --convert`).
 - **Subtitles**: Writes the SRT body returned by the server directly to the output file.
 - **Polishing (Optional)**: Refines generated SRTs for mistranslations and typos using a project reference (local file or URL) via `create --polish_with`.
-  - **Preprocessing**: If an LLM is available (via `llm.api_url` in config or `--use_gemini`), the tool automatically corrects typos, fixes grammar, and merges redundant entries.
-  - **Humanizer (Korean)**: When the subtitle language is Korean (or detected as Korean with `--lang auto`), the `.agents/skills/humanizer` skill is automatically applied after preprocessing/polishing to make dialogue sound more natural.
+  - **Preprocessing**: When enabled with `--preprocess` (requires an LLM via `llm.api_url` in config or `--use_gemini`), the tool corrects typos, fixes grammar, and merges redundant entries. Off by default.
+  - **Humanizer (Korean)**: When enabled with `--humanize` and the subtitle language is Korean (or detected as Korean with `--lang auto`), the `.agents/skills/humanizer` skill is applied after preprocessing/polishing to make dialogue sound more natural. Off by default.
   - **Polishing**: If `--polish_with` is specified, it further refines jargon and terminology based on the provided reference document.
   - By default, it uses `llama-server` (OpenAI-compatible), or **Google Gemini** when the `--use_gemini` flag is provided.
-- **Translation**: Translates SRT files into target languages (comma-separated codes) using the `translate` subcommand. Similarly, it defaults to `llama-server` and supports Gemini.
+- **Translation**: With the `--translate` (`-t`) option, translates subtitles into target languages (comma-separated codes). After generating from video/URL, writes `<output>_<lang>.srt` for each language. When `input` is an existing `.srt` file, runs translate-only mode and writes `<input>_<lang>.srt` (requires `--translate`). Defaults to `llama-server`; supports Gemini with `--use_gemini`.
 
 ## Requirements
 
@@ -89,36 +89,39 @@ uv sync
 
 ```bash
 # YouTube → SRT (Uploads MP3; requires whisper-server --convert running)
-uv run main.py create "https://www.youtube.com/watch?v=..." -o output.srt
+uv run main.py "https://www.youtube.com/watch?v=..." -o output.srt
 
 # Local File → SRT
-uv run main.py create video.mp4 -o output.srt
+uv run main.py video.mp4 -o output.srt
+
+# Generate and translate in one command → output.srt, output_ko.srt, output_en.srt, output_ja.srt
+uv run main.py video.mp4 -o output.srt --translate ko,en,ja
+
+# Translate an existing SRT → output_en.srt, output_ja.srt
+uv run main.py output.srt --translate en,ja
 
 # Isolate vocals first (source has music/SFX; requires `uv sync --extra separate`)
-uv run main.py create video.mp4 -o output.srt --isolate-vocals
+uv run main.py video.mp4 -o output.srt --isolate-vocals
 
 # Polish using Gemini
 export GEMINI_API_KEY=...
-uv run main.py create video.mp4 -o output.srt --use_gemini --polish_with ./README.md
-
-# Translate existing SRT
-uv run main.py translate -l en,ja,pl output.srt
+uv run main.py video.mp4 -o output.srt --use_gemini --polish_with ./README.md
 ```
 
 ### CLI Options
 
-| Subcommand | Option | Description |
-| :--- | :--- | :--- |
-| **create** | `input` | YouTube URL or Local Video Path (Positional) |
-| | `-o`, `--output` | Path to output SRT file (Required) |
-| | `--lang` | Language code. Uses `stt.default_language` if omitted. |
-| | `--isolate-vocals` / `--no-isolate-vocals` | Enable/disable vocal isolation (demucs) before STT. Overrides `audio.isolate_vocals` in config. |
-| | `--temp_dir` | Fixed temporary directory; will not be deleted after processing. |
-| | `--use_gemini` | Use Gemini API for polishing/translation (Requires `GEMINI_API_KEY`). |
-| | `--polish_with` | Path or `http(s)` URL to a reference document. Refines STT results and overwrites the `-o` file. |
-| **translate** | `input` | Input SRT file (Positional) |
-| | `-l`, `--langs` | Comma-separated language codes (Required) |
-| | `--use_gemini` | Use Gemini API for translation. |
+| Option | Description |
+| :--- | :--- |
+| `input` | YouTube URL, local video path, or existing `.srt` file (translate-only when `.srt`) |
+| `-o`, `--output` | Path to output SRT when generating from video/URL (default: `output.srt`). Ignored for `.srt` input. |
+| `-l`, `--lang` | Language code. Uses `stt.default_language` if omitted. |
+| `-t`, `--translate` | Comma-separated language codes (e.g., `ko,en,ja`). With video/URL: also translates the generated SRT. With `.srt` input: required; translates that file. Writes `<stem>_<lang>.srt` for each. |
+| `--isolate-vocals` / `--no-isolate-vocals` | Enable/disable vocal isolation (demucs) before STT. Overrides `audio.isolate_vocals` in config. |
+| `--preprocess` | Enable LLM preprocessing (typo/grammar fixes). Off by default; requires an available LLM. |
+| `--humanize` | Enable Korean humanizer after LLM steps. Off by default; applies to Korean subtitles. |
+| `--temp_dir` | Fixed temporary directory; will not be deleted after processing. |
+| `--use_gemini` | Use Gemini API for polishing/translation (Requires `GEMINI_API_KEY`). |
+| `-p`, `--polish_with` | Path or `http(s)` URL to a reference document. Refines STT results and overwrites the `-o` file. |
 
 ## Dependency Summary
 

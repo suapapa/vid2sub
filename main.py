@@ -1,6 +1,7 @@
 import argparse
 import re
 import traceback
+from pathlib import Path
 from typing import Optional
 
 from vid2sub.logger import Logger
@@ -26,73 +27,103 @@ def _parse_translate_to(raw: Optional[str]) -> Optional[list[str]]:
     return out or None
 
 
+def _is_srt_input(source: str) -> bool:
+    s = source.strip()
+    if s.startswith(("http://", "https://", "www.", "youtu.be")):
+        return False
+    return Path(s).suffix.lower() == ".srt"
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="vid2sub - Advanced Subtitle Generator"
     )
-    subparsers = parser.add_subparsers(dest="command", help="Subcommand to run")
-
-    # 'create' subcommand
-    create_parser = subparsers.add_parser("create", help="Create subtitles from video/URL")
-    create_parser.add_argument("input", help="YouTube URL or Local Video Path")
-    create_parser.add_argument("-o", "--output", default="output.srt", help="Output SRT Path (default: output.srt)")
-    create_parser.add_argument(
+    parser.add_argument(
+        "input",
+        help="YouTube URL, local video path, or existing .srt file (translate-only when .srt)",
+    )
+    parser.add_argument(
+        "-o", "--output",
+        default="output.srt",
+        help="Output SRT path when generating from video/URL (default: output.srt). Ignored for .srt input.",
+    )
+    parser.add_argument(
         "-l", "--lang",
         default=None,
         help="Language code (e.g., ko). Uses stt.default_language in config.yaml if unspecified.",
     )
-    create_parser.add_argument(
+    parser.add_argument(
+        "-t", "--translate",
+        default=None,
+        metavar="LANGS",
+        help="Translate into comma-separated languages (e.g., ko,en,ja). With video/URL: also writes <output>_<lang>.srt. With .srt input: required; writes <input>_<lang>.srt.",
+    )
+    parser.add_argument(
         "-p", "--polish_with",
         default=None,
         metavar="PATH_OR_URL",
         help="Reference document (local path or http(s) URL). Used for polishing STT SRT.",
     )
-    create_parser.add_argument(
+    parser.add_argument(
         "--use_gemini",
         action="store_true",
         help="Perform polishing and translation using the Gemini API. (Requires GEMINI_API_KEY)",
     )
-    create_parser.add_argument(
+    parser.add_argument(
         "--isolate-vocals",
         dest="isolate_vocals",
         action="store_true",
         default=None,
         help="Separate vocals from background music/SFX with demucs before STT. Overrides audio.isolate_vocals in config.yaml.",
     )
-    create_parser.add_argument(
+    parser.add_argument(
         "--no-isolate-vocals",
         dest="isolate_vocals",
         action="store_false",
         help="Disable vocal isolation even if enabled in config.yaml.",
     )
-    create_parser.add_argument(
+    parser.add_argument(
+        "--preprocess",
+        dest="preprocess",
+        action="store_true",
+        help="Run LLM preprocessing (typo/grammar fixes). Off by default.",
+    )
+    parser.add_argument(
+        "--humanize",
+        dest="humanize",
+        action="store_true",
+        help="Apply Korean humanizer after LLM steps. Off by default.",
+    )
+    parser.add_argument(
         "--temp_dir", help="Explicit temporary directory (for debugging)"
     )
 
-    # 'translate' subcommand
-    translate_parser = subparsers.add_parser("translate", help="Translate existing subtitles")
-    translate_parser.add_argument("input", help="Input SRT Path")
-    translate_parser.add_argument(
-        "-l", "--langs",
-        required=True,
-        metavar="LANGS",
-        help="Comma-separated target language codes (e.g., en,ja)",
-    )
-    translate_parser.add_argument(
-        "--use_gemini",
-        action="store_true",
-        help="Perform translation using the Gemini API. (Requires GEMINI_API_KEY)",
-    )
-
     args = parser.parse_args()
-
-    if not args.command:
-        parser.print_help()
-        return
+    preprocess = args.preprocess
+    humanize = args.humanize
 
     try:
+        translate_langs = _parse_translate_to(args.translate)
         gen = SubtitleGenerator()
-        if args.command == "create":
+
+        if _is_srt_input(args.input):
+            if not translate_langs:
+                raise ValueError(
+                    "SRT input requires --translate with at least one target language "
+                    "(e.g., --translate en,ja)."
+                )
+            if args.polish_with:
+                raise ValueError(
+                    "--polish_with applies only when generating subtitles from video/URL, "
+                    "not when translating an existing SRT."
+                )
+            gen.translate_srt_file(
+                args.input,
+                translate_to=translate_langs,
+                use_gemini=args.use_gemini,
+                humanize=humanize,
+            )
+        else:
             gen.process(
                 args.input,
                 args.output,
@@ -101,17 +132,18 @@ def main() -> None:
                 use_gemini=args.use_gemini,
                 polish_with=args.polish_with,
                 isolate_vocals=args.isolate_vocals,
+                preprocess=preprocess,
+                humanize=humanize,
             )
-        elif args.command == "translate":
-            translate_langs = _parse_translate_to(args.langs)
-            if not translate_langs:
-                raise ValueError("At least one target language must be specified.")
-            gen.translate_srt_file(
-                args.input,
-                translate_to=translate_langs,
-                use_gemini=args.use_gemini,
-            )
-        
+
+            if translate_langs:
+                gen.translate_srt_file(
+                    args.output,
+                    translate_to=translate_langs,
+                    use_gemini=args.use_gemini,
+                    humanize=humanize,
+                )
+
         Logger.success("Done!")
     except Exception as e:
         Logger.error(f"Error: {e}")

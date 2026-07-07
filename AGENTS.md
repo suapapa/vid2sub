@@ -22,9 +22,9 @@ This file serves as a guideline and progress log for AI agents developing the **
 | Gemini-based SRT Polishing (`--polish_with`, `GEMINI_API_KEY`) | ✅ Done | `google-genai`, reference is local file or URL. Requires `--use_gemini` flag. |
 | Gemini-based SRT Translation (`-l`, `GEMINI_API_KEY`) | ✅ Done | `vid2sub/gemini_srt_translator.py`, Requires `--use_gemini` flag. |
 | OpenAI-Compatible Server Support (llama-server) | ✅ Done | Using `llm.api_url` (OpenAI API compatible). |
-| Subcommand Support (`create`, `translate`) | ✅ Done | Separated generation and translation into subcommands. |
-| SRT Preprocessing Step | ✅ Done | Correct typos/grammar and merge redundant entries. Run by default if LLM is available. |
-| Korean Humanizer Integration | ✅ Done | Auto-applies `.agents/skills/humanizer` for Korean SRT after LLM preprocessing/polishing. |
+| Unified Single-Command CLI (`--translate`) | ✅ Done | No subcommands. Video/URL → generate (`-o`); optional `--translate` adds `<output>_<lang>.srt`. `.srt` input → translate-only (`--translate` required); writes `<input>_<lang>.srt`. |
+| SRT Preprocessing Step | ✅ Done | Correct typos/grammar and merge redundant entries. Opt-in via `--preprocess` (requires an available LLM). |
+| Korean Humanizer Integration | ✅ Done | Applies `.agents/skills/humanizer` for Korean SRT after LLM preprocessing/polishing. Opt-in via `--humanize`. |
 | Centralized LLM Prompts (`prompt.yaml`) | ✅ Done | All LLM prompts in `prompt.yaml`; loaded by `vid2sub/prompts.py`. |
 | LICENSE File Addition | ✅ Done | MIT License |
 
@@ -37,5 +37,5 @@ This file serves as a guideline and progress log for AI agents developing the **
   - `openai`: POSTs to `{stt.api_url}/audio/transcriptions` (OpenAI-compatible gateway, e.g. Bifrost). Body additionally includes `model` (from `stt.model`).
   Audio format conversion is NOT performed by the client. If `stt.api_key` is set, it is sent as a Bearer token.
 - **Language**: If CLI `--lang` is missing, `stt.default_language` is used.
-- **Subcommands**: Use `create` for generating subtitles from video/URL and `translate` for translating existing SRT files. The `translate` subcommand supports `-l` for multiple target languages.
+- **CLI**: Single command, no subcommands. `input` is a YouTube URL, local video path, or existing `.srt` file. Video/URL: generates subtitles to `-o` (default `output.srt`); optional `--translate` (`-t`) also writes `<output>_<lang>.srt`. `.srt` input: translate-only; `--translate` is required and writes `<input>_<lang>.srt`. LLM preprocessing and Korean humanization are off by default; enable with `--preprocess` / `--humanize`.
 - **LLM Prompts**: Stored in `prompt.yaml`. `vid2sub/prompts.py` builds user/system messages for preprocess, polish, translate, and humanize steps.
