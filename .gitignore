@@ -22,3 +22,5 @@ test_run.sh
 .agents/
 .claude/
 skills-lock.json
+
+*.srt

@@ -1,9 +1,10 @@
 stt:
   type: whisper.cpp
-  api_url: "http://localhost:8080"
+  api_url: "http://localhost:8080/v1"
+  api_key:
   default_language: "auto"
 
 llm:
-  api_url: "http://localhost:8081"
-  api_key:
-  model:
+  api_url: "http://localhost:8081/v1"
+  api_key: sk-1234
+  model: smart-model

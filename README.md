@@ -46,10 +46,11 @@ Place the following in `config.yaml` (see `config_sample.yaml` for a template):
 stt:
   type: whisper.cpp
   api_url: "http://host:port"   # No trailing slash; requests will be sent to .../inference
+  api_key:                        # Optional; sent as Bearer token if set
   default_language: "auto"      # e.g., ko, en. Can be overridden with CLI --lang
 
 llm:
-  api_url: "http://host:port"   # OpenAI-compatible API server (e.g., llama-server)
+  api_url: "http://host:port/v1"   # OpenAI-compatible API base (e.g., llama-server)
   api_key:                        # Optional; sent as Bearer token if set
   model:                          # Optional; defaults to gpt-3.5-turbo
 ```

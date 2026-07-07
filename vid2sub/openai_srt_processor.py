@@ -27,7 +27,7 @@ class OpenAiSrtProcessor:
         import json
         import sys
 
-        url = f"{self.api_url}/v1/chat/completions"
+        url = f"{self.api_url}/chat/completions"
         payload = {
             "model": self.model,
             "messages": [

@@ -33,6 +33,7 @@ class SubtitleGenerator:
         stt = self.config.get("stt") or {}
         self.stt_type = stt.get("type") or "whisper.cpp"
         self.stt_api_url = (stt.get("api_url") or "").rstrip("/")
+        self.stt_api_key = stt.get("api_key") or None
         self.default_language = stt.get("default_language") or "auto"
 
         llm = self.config.get("llm") or {}
@@ -124,16 +125,24 @@ class SubtitleGenerator:
         """Sends the full audio to the STT HTTP server and receives an SRT."""
         if self.stt_type != "whisper.cpp":
             raise ValueError(f"Unsupported stt.type: {self.stt_type!r}")
-        inference_url = "".join((self.stt_api_url, "/inference"))
+        inference_url = f"{self.stt_api_url}/audio/transcriptions"
         data = {
+            "model": "whisper-1",
             "response_format": "srt",
             "language": language,
         }
         Logger.info(f"POST {inference_url} ({audio_path.name}, language={language})...")
+        headers = {}
+        if self.stt_api_key:
+            headers["Authorization"] = f"Bearer {self.stt_api_key}"
         with open(audio_path, "rb") as f:
             files = {"file": (audio_path.name, f, "application/octet-stream")}
             resp = requests.post(
-                inference_url, data=data, files=files, timeout=24 * 3600
+                inference_url,
+                data=data,
+                files=files,
+                headers=headers,
+                timeout=24 * 3600,
             )
         resp.raise_for_status()
         return resp.text
@@ -200,6 +209,7 @@ class SubtitleGenerator:
 
         if use_gemini:
             from .gemini_srt_polisher import GeminiSrtPolisher
+
             polisher = GeminiSrtPolisher.from_env()
         elif self.llm_api_url:
             polisher = OpenAiSrtProcessor(
@@ -246,6 +256,7 @@ class SubtitleGenerator:
         translator = None
         if use_gemini:
             from .gemini_srt_translator import GeminiSrtTranslator
+
             translator = GeminiSrtTranslator.from_env()
         elif self.llm_api_url:
             translator = OpenAiSrtProcessor(
