@@ -34,17 +34,6 @@ def _is_srt_input(source: str) -> bool:
     return Path(s).suffix.lower() == ".srt"
 
 
-def _is_url_input(source: str) -> bool:
-    return source.strip().startswith(("http://", "https://", "www.", "youtu.be"))
-
-
-def _default_output_for(source: str) -> str:
-    """Derives the default SRT output path from the input when -o is omitted."""
-    if _is_url_input(source):
-        return "output.srt"
-    return str(Path(source.strip()).with_suffix(".srt"))
-
-
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="vid2sub - Advanced Subtitle Generator"
@@ -56,7 +45,7 @@ def main() -> None:
     parser.add_argument(
         "-o", "--output",
         default=None,
-        help="Output SRT path when generating from video/URL. Defaults to <video-name>.srt for local videos, or output.srt for URLs. Ignored for .srt input.",
+        help="Output SRT path when generating from video/URL. Defaults to <temp_dir>/<name>.srt when --temp_dir is set, otherwise <name>.srt in the current directory (<name> is the YouTube title or local file stem). Ignored for .srt input.",
     )
     parser.add_argument(
         "-l", "--lang",
@@ -131,7 +120,9 @@ def main() -> None:
                 temp_dir=args.temp_dir,
             )
         else:
-            output_path = args.output or _default_output_for(args.input)
+            output_path = args.output or str(
+                gen.default_output_path(args.input, args.temp_dir)
+            )
             gen.process(
                 args.input,
                 output_path,

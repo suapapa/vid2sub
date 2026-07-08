@@ -1,3 +1,4 @@
+import re
 import tempfile
 from pathlib import Path
 from typing import Any, Optional, Sequence
@@ -132,6 +133,38 @@ class SubtitleGenerator:
         except FileNotFoundError as exc:
             Logger.warn(f"Skipping humanizer: {exc}")
             return srt_body
+
+    @staticmethod
+    def _sanitize_filename(name: str) -> str:
+        sanitized = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "", name)
+        sanitized = re.sub(r"\s+", " ", sanitized).strip().rstrip(". ")
+        if not sanitized:
+            sanitized = "output"
+        if len(sanitized) > 200:
+            sanitized = sanitized[:200].rstrip()
+        return sanitized
+
+    @staticmethod
+    def _is_url(source: str) -> bool:
+        return source.strip().startswith(("http://", "https://", "www.", "youtu.be"))
+
+    def get_youtube_title(self, url: str) -> str:
+        ydl_opts = {**self._YDL_OPTS_BASE, "skip_download": True}
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=False)
+        title = info.get("title") if isinstance(info, dict) else None
+        return self._sanitize_filename(title or "output")
+
+    def default_output_path(
+        self, source: str, temp_dir: Optional[str] = None
+    ) -> Path:
+        """Resolves the output SRT path when -o is omitted."""
+        base_dir = Path(temp_dir) if temp_dir else Path.cwd()
+        if self._is_url(source):
+            stem = self.get_youtube_title(source)
+        else:
+            stem = self._sanitize_filename(Path(source.strip()).stem)
+        return base_dir / f"{stem}.srt"
 
     @staticmethod
     def _dump_stage(temp_path: Optional[Path], name: str, body: str) -> None:
@@ -365,10 +398,7 @@ class SubtitleGenerator:
             )
 
         if polisher and (preprocess or polish_with or humanize):
-            # Backup original SRT before processing
-            orig_file = out_file.with_name(f"{out_file.stem}_orig.srt")
-            orig_file.write_text(srt_body, encoding="utf-8")
-            Logger.info(f"Backup original SRT to: {orig_file}")
+            self._dump_stage(temp_path, "05_orig.srt", srt_body)
 
             if preprocess:
                 srt_body = polisher.preprocess(srt_body)

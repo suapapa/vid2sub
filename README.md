@@ -135,7 +135,7 @@ uv run main.py video.mp4 -o output.srt --polish_with ./README.md
 | Option | Description |
 | :--- | :--- |
 | `input` | YouTube URL, local video/MP3 path, or existing `.srt` file (translate-only when `.srt`) |
-| `-o`, `--output` | Path to output SRT when generating from video/URL (default: `output.srt`). Ignored for `.srt` input. |
+| `-o`, `--output` | Path to output SRT when generating from video/URL. If omitted: `<temp_dir>/<name>.srt` when `--temp_dir` is set, otherwise `<name>.srt` in the current directory (`<name>` is the YouTube video title or local file stem). Ignored for `.srt` input. |
 | `-l`, `--lang` | Language code. Uses `stt.default_language` if omitted. |
 | `-t`, `--translate` | Comma-separated language codes (e.g., `ko,en,ja`). With video/URL: also translates the generated SRT. With `.srt` input: required; translates that file. Writes `<stem>_<lang>.srt` for each. |
 | `--isolate-vocals` / `--no-isolate-vocals` | Enable/disable vocal isolation (demucs) before STT. Overrides `audio.isolate_vocals` in config. |
