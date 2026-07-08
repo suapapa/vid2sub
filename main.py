@@ -34,6 +34,17 @@ def _is_srt_input(source: str) -> bool:
     return Path(s).suffix.lower() == ".srt"
 
 
+def _is_url_input(source: str) -> bool:
+    return source.strip().startswith(("http://", "https://", "www.", "youtu.be"))
+
+
+def _default_output_for(source: str) -> str:
+    """Derives the default SRT output path from the input when -o is omitted."""
+    if _is_url_input(source):
+        return "output.srt"
+    return str(Path(source.strip()).with_suffix(".srt"))
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="vid2sub - Advanced Subtitle Generator"
@@ -44,8 +55,8 @@ def main() -> None:
     )
     parser.add_argument(
         "-o", "--output",
-        default="output.srt",
-        help="Output SRT path when generating from video/URL (default: output.srt). Ignored for .srt input.",
+        default=None,
+        help="Output SRT path when generating from video/URL. Defaults to <video-name>.srt for local videos, or output.srt for URLs. Ignored for .srt input.",
     )
     parser.add_argument(
         "-l", "--lang",
@@ -126,9 +137,10 @@ def main() -> None:
                 temp_dir=args.temp_dir,
             )
         else:
+            output_path = args.output or _default_output_for(args.input)
             gen.process(
                 args.input,
-                args.output,
+                output_path,
                 args.temp_dir,
                 language=args.lang,
                 use_gemini=args.use_gemini,
@@ -140,7 +152,7 @@ def main() -> None:
 
             if translate_langs:
                 gen.translate_srt_file(
-                    args.output,
+                    output_path,
                     translate_to=translate_langs,
                     use_gemini=args.use_gemini,
                     humanize=humanize,
