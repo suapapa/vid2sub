@@ -165,7 +165,16 @@ class SubtitleGenerator:
         """Extracts audio from a YouTube URL or a local file."""
         if source.startswith(("http://", "https://", "www.", "youtu.be")):
             return self._download_youtube(source, temp_dir)
-        return self._extract_from_file(Path(source), temp_dir)
+        file_path = Path(source)
+        if file_path.suffix.lower() == ".mp3":
+            return self._use_mp3_file(file_path)
+        return self._extract_from_file(file_path, temp_dir)
+
+    def _use_mp3_file(self, file_path: Path) -> Path:
+        Logger.info(f"Using MP3 file directly: {file_path}")
+        if not file_path.exists():
+            raise FileNotFoundError(f"File not found: {file_path}")
+        return file_path.resolve()
 
     def _download_youtube(self, url: str, temp_dir: Path) -> Path:
         Logger.info(f"Downloading YouTube audio: {url}")
@@ -261,7 +270,6 @@ class SubtitleGenerator:
         temp_dir: Optional[str] = None,
         *,
         language: Optional[str] = None,
-        use_gemini: bool = False,
         polish_with: Optional[str] = None,
         isolate_vocals: Optional[bool] = None,
         preprocess: bool = False,
@@ -288,7 +296,6 @@ class SubtitleGenerator:
                 out_p,
                 temp_path,
                 language=lang,
-                use_gemini=use_gemini,
                 polish_with=polish_with,
                 isolate_vocals=do_isolate,
                 preprocess=preprocess,
@@ -301,7 +308,6 @@ class SubtitleGenerator:
                     out_p,
                     Path(td),
                     language=lang,
-                    use_gemini=use_gemini,
                     polish_with=polish_with,
                     isolate_vocals=do_isolate,
                     preprocess=preprocess,
@@ -315,7 +321,6 @@ class SubtitleGenerator:
         temp_path: Path,
         *,
         language: str,
-        use_gemini: bool = False,
         polish_with: Optional[str] = None,
         isolate_vocals: bool = False,
         preprocess: bool = False,
@@ -331,22 +336,16 @@ class SubtitleGenerator:
         Logger.info(f"Saving SRT: {out_file}")
         out_file.write_text(final_srt, encoding="utf-8")
 
-        # Initialize processors based on flags
         polisher = None
-
-        if use_gemini:
-            from .gemini_srt_polisher import GeminiSrtPolisher
-
-            polisher = GeminiSrtPolisher.from_env()
-        elif self.llm_api_url:
+        if self.llm_api_url:
             polisher = OpenAiSrtProcessor(
                 self.llm_api_url,
                 model=self.llm_model,
                 api_key=self.llm_api_key,
             )
-        elif polish_with:
+        elif polish_with or preprocess or humanize:
             raise ValueError(
-                "The --use_gemini flag or llm.api_url in config.yaml is required for polishing."
+                "llm.api_url in config.yaml is required for preprocessing, polishing, or humanization."
             )
 
         if polisher and (preprocess or polish_with or humanize):
@@ -378,7 +377,6 @@ class SubtitleGenerator:
         self,
         input_srt_path: str,
         translate_to: Sequence[str],
-        use_gemini: bool = False,
         humanize: bool = False,
         temp_dir: Optional[str] = None,
     ):
@@ -390,21 +388,15 @@ class SubtitleGenerator:
         temp_path = Path(temp_dir) if temp_dir else None
         srt_body = input_p.read_text(encoding="utf-8")
 
-        translator = None
-        if use_gemini:
-            from .gemini_srt_translator import GeminiSrtTranslator
-
-            translator = GeminiSrtTranslator.from_env()
-        elif self.llm_api_url:
-            translator = OpenAiSrtProcessor(
-                self.llm_api_url,
-                model=self.llm_model,
-                api_key=self.llm_api_key,
-            )
-        else:
+        if not self.llm_api_url:
             raise ValueError(
-                "The --use_gemini flag or llm.api_url in config.yaml is required for translation."
+                "llm.api_url in config.yaml is required for translation."
             )
+        translator = OpenAiSrtProcessor(
+            self.llm_api_url,
+            model=self.llm_model,
+            api_key=self.llm_api_key,
+        )
 
         for code in translate_to:
             c = code.strip().lower()

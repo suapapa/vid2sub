@@ -15,13 +15,12 @@ This file serves as a guideline and progress log for AI agents developing the **
 | Project Structure & Dependency Definition | ✅ Done | Using `pyproject.toml`, `uv` |
 | YouTube URL-based Audio Extraction | ✅ Done | `yt-dlp` → MP3 |
 | Local Video-based Audio Extraction | ✅ Done | `moviepy` → MP3 |
+| Local MP3 Input (skip extraction) | ✅ Done | `.mp3` path passed directly to STT |
 | Vocal Isolation (pre-STT) | ✅ Done | Optional `demucs` (`--two-stems=vocals`) step in `vid2sub/vocal_isolator.py`. Enabled via `--isolate-vocals` or `audio.isolate_vocals`. Optional dep group `separate`. |
 | STT (Speech-to-Text) Integration | ✅ Done | `whisper-server --convert` + `POST .../inference` at `stt.api_url` (multipart, `requests`). Client uploads MP3 only. |
 | SRT Output | ✅ Done | Save server response (`response_format=srt`) directly. |
 | Configuration File (`config.yaml`) Integration | ✅ Done | `stt.api_url`, `stt.api_key`, `stt.default_language`, `llm.api_url`, `llm.model`, `llm.api_key` (`pyyaml`) |
-| Gemini-based SRT Polishing (`--polish_with`, `GEMINI_API_KEY`) | ✅ Done | `google-genai`, reference is local file or URL. Requires `--use_gemini` flag. |
-| Gemini-based SRT Translation (`-l`, `GEMINI_API_KEY`) | ✅ Done | `vid2sub/gemini_srt_translator.py`, Requires `--use_gemini` flag. |
-| OpenAI-Compatible Server Support (llama-server) | ✅ Done | Using `llm.api_url` (OpenAI API compatible). |
+| OpenAI-Compatible Server Support (llama-server) | ✅ Done | Using `llm.api_url` (OpenAI API compatible) for polishing, translation, preprocessing, and humanization. |
 | Unified Single-Command CLI (`--translate`) | ✅ Done | No subcommands. Video/URL → generate (`-o`); optional `--translate` adds `<output>_<lang>.srt`. `.srt` input → translate-only (`--translate` required); writes `<input>_<lang>.srt`. |
 | SRT Preprocessing Step | ✅ Done | Correct typos/grammar and merge redundant entries. Opt-in via `--preprocess` (requires an available LLM). |
 | Korean Humanizer Integration | ✅ Done | Applies `.agents/skills/humanizer` for Korean SRT after LLM preprocessing/polishing. Opt-in via `--humanize`. |

@@ -8,15 +8,16 @@ A CLI tool that extracts audio from YouTube URLs or local videos, sends the full
 
 - **YouTube**: Downloads best audio using `yt-dlp` and extracts as MP3.
 - **Local Video**: Extracts audio tracks from local video files as MP3 using `moviepy`.
+- **Local MP3**: Uses an existing MP3 file directly for STT (skips audio extraction).
 - **Vocal Isolation (Optional)**: When the source contains background music or sound effects that degrade transcription, `demucs` can separate clean vocals before STT. Enable with `create --isolate-vocals` or `audio.isolate_vocals: true` in config.
 - **Upload**: Sends the extracted MP3 directly to the `/inference` endpoint. Format conversion is handled on the **server-side** (`whisper-server --convert`).
 - **Subtitles**: Writes the SRT body returned by the server directly to the output file.
 - **Polishing (Optional)**: Refines generated SRTs for mistranslations and typos using a project reference (local file or URL) via `create --polish_with`.
-  - **Preprocessing**: When enabled with `--preprocess` (requires an LLM via `llm.api_url` in config or `--use_gemini`), the tool corrects typos, fixes grammar, and merges redundant entries. Off by default.
+  - **Preprocessing**: When enabled with `--preprocess` (requires `llm.api_url` in config), the tool corrects typos, fixes grammar, and merges redundant entries. Off by default.
   - **Humanizer (Korean)**: When enabled with `--humanize` and the subtitle language is Korean (or detected as Korean with `--lang auto`), the `.agents/skills/humanizer` skill is applied after preprocessing/polishing to make dialogue sound more natural. Off by default.
   - **Polishing**: If `--polish_with` is specified, it further refines jargon and terminology based on the provided reference document.
-  - By default, it uses `llama-server` (OpenAI-compatible), or **Google Gemini** when the `--use_gemini` flag is provided.
-- **Translation**: With the `--translate` (`-t`) option, translates subtitles into target languages (comma-separated codes). After generating from video/URL, writes `<output>_<lang>.srt` for each language. When `input` is an existing `.srt` file, runs translate-only mode and writes `<input>_<lang>.srt` (requires `--translate`). Defaults to `llama-server`; supports Gemini with `--use_gemini`.
+  - Uses an OpenAI-compatible LLM server (e.g. `llama-server`) configured via `llm.api_url`.
+- **Translation**: With the `--translate` (`-t`) option, translates subtitles into target languages (comma-separated codes). After generating from video/URL, writes `<output>_<lang>.srt` for each language. When `input` is an existing `.srt` file, runs translate-only mode and writes `<input>_<lang>.srt` (requires `--translate`). Requires `llm.api_url` in config.
 
 ## Requirements
 
@@ -25,7 +26,7 @@ A CLI tool that extracts audio from YouTube URLs or local videos, sends the full
 - **Demucs (Optional, for vocal isolation)**: Only needed when using `--isolate-vocals` / `audio.isolate_vocals`. Install the optional dependency group with `uv sync --extra separate`. This pulls in PyTorch, so it is large; a GPU (CUDA/MPS) is recommended but not required.
 - **whisper-server (`--convert`)**: Follow the build and run instructions in the [ggml-org/whisper.cpp](https://github.com/ggml-org/whisper.cpp) repository. You **must** enable the **`--convert`** flag when starting **`whisper-server`**. This allows the server to convert uploaded audio (like MP3) to the required format. This project interacts with the server's **`/inference`** multipart API.
 - **Network**: The client must be able to reach the server at `stt.api_url` specified in `config.yaml`.
-- **LLM Server (Polishing/Translation)**: Polishing and translation features require **llama-server** (providing an OpenAI-compatible API) by default. Set `llm.api_url` (and optionally `llm.model`, `llm.api_key`) in `config.yaml`. If using `--use_gemini`, you must have access to the Google Gemini API.
+- **LLM Server (Polishing/Translation)**: Polishing and translation features require an OpenAI-compatible API (e.g. **llama-server**). Set `llm.api_url` (and optionally `llm.model`, `llm.api_key`) in `config.yaml`.
 
 ## STT Server (whisper-server)
 
@@ -77,7 +78,7 @@ The server is expected to receive multipart requests with:
 
 ### LLM Prompts
 
-Preprocessing, polishing, translation, and humanization prompts are defined in **`prompt.yaml`** at the project root. Gemini and OpenAI-compatible backends both read from this file via `vid2sub/prompts.py`. Edit the YAML to tune LLM behavior without changing Python code.
+Preprocessing, polishing, translation, and humanization prompts are defined in **`prompt.yaml`** at the project root. The OpenAI-compatible backend reads from this file via `vid2sub/prompts.py`. Edit the YAML to tune LLM behavior without changing Python code.
 
 Sections: `preprocess`, `polish`, `translate`, `humanize`, and `openai.system` (system message for chat-completions APIs).
 
@@ -98,6 +99,9 @@ uv run main.py "https://www.youtube.com/watch?v=..." -o output.srt
 # Local File → SRT
 uv run main.py video.mp4 -o output.srt
 
+# Local MP3 → SRT (skips audio extraction)
+uv run main.py audio.mp3 -o output.srt
+
 # Generate and translate in one command → output.srt, output_ko.srt, output_en.srt, output_ja.srt
 uv run main.py video.mp4 -o output.srt --translate ko,en,ja
 
@@ -107,16 +111,15 @@ uv run main.py output.srt --translate en,ja
 # Isolate vocals first (source has music/SFX; requires `uv sync --extra separate`)
 uv run main.py video.mp4 -o output.srt --isolate-vocals
 
-# Polish using Gemini
-export GEMINI_API_KEY=...
-uv run main.py video.mp4 -o output.srt --use_gemini --polish_with ./README.md
+# Polish using a reference document (requires llm.api_url in config)
+uv run main.py video.mp4 -o output.srt --polish_with ./README.md
 ```
 
 ### CLI Options
 
 | Option | Description |
 | :--- | :--- |
-| `input` | YouTube URL, local video path, or existing `.srt` file (translate-only when `.srt`) |
+| `input` | YouTube URL, local video/MP3 path, or existing `.srt` file (translate-only when `.srt`) |
 | `-o`, `--output` | Path to output SRT when generating from video/URL (default: `output.srt`). Ignored for `.srt` input. |
 | `-l`, `--lang` | Language code. Uses `stt.default_language` if omitted. |
 | `-t`, `--translate` | Comma-separated language codes (e.g., `ko,en,ja`). With video/URL: also translates the generated SRT. With `.srt` input: required; translates that file. Writes `<stem>_<lang>.srt` for each. |
@@ -124,12 +127,11 @@ uv run main.py video.mp4 -o output.srt --use_gemini --polish_with ./README.md
 | `--preprocess` | Enable LLM preprocessing (typo/grammar fixes). Off by default; requires an available LLM. |
 | `--humanize` | Enable Korean humanizer after LLM steps. Off by default; applies to Korean subtitles. |
 | `--temp_dir` | Fixed temporary directory; not deleted after processing. Per-stage SRTs (STT, preprocess, polish, humanize, translate) are saved under `<temp_dir>/stages/`. |
-| `--use_gemini` | Use Gemini API for polishing/translation (Requires `GEMINI_API_KEY`). |
 | `-p`, `--polish_with` | Path or `http(s)` URL to a reference document. Refines STT results and overwrites the `-o` file. |
 
 ## Dependency Summary
 
-Based on `pyproject.toml`: `requests`, `yt-dlp`, `moviepy`, `pyyaml`, `google-genai`, etc. Refer to the repository's lock/metadata for specific versions.
+Based on `pyproject.toml`: `requests`, `yt-dlp`, `moviepy`, `pyyaml`, etc. Refer to the repository's lock/metadata for specific versions.
 
 ## Cheat Sheet
 

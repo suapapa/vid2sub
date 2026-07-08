@@ -51,7 +51,7 @@ def main() -> None:
     )
     parser.add_argument(
         "input",
-        help="YouTube URL, local video path, or existing .srt file (translate-only when .srt)",
+        help="YouTube URL, local video/MP3 path, or existing .srt file (translate-only when .srt)",
     )
     parser.add_argument(
         "-o", "--output",
@@ -74,11 +74,6 @@ def main() -> None:
         default=None,
         metavar="PATH_OR_URL",
         help="Reference document (local path or http(s) URL). Used for polishing STT SRT.",
-    )
-    parser.add_argument(
-        "--use_gemini",
-        action="store_true",
-        help="Perform polishing and translation using the Gemini API. (Requires GEMINI_API_KEY)",
     )
     parser.add_argument(
         "--isolate-vocals",
@@ -132,7 +127,6 @@ def main() -> None:
             gen.translate_srt_file(
                 args.input,
                 translate_to=translate_langs,
-                use_gemini=args.use_gemini,
                 humanize=humanize,
                 temp_dir=args.temp_dir,
             )
@@ -143,7 +137,6 @@ def main() -> None:
                 output_path,
                 args.temp_dir,
                 language=args.lang,
-                use_gemini=args.use_gemini,
                 polish_with=args.polish_with,
                 isolate_vocals=args.isolate_vocals,
                 preprocess=preprocess,
@@ -154,7 +147,6 @@ def main() -> None:
                 gen.translate_srt_file(
                     output_path,
                     translate_to=translate_langs,
-                    use_gemini=args.use_gemini,
                     humanize=humanize,
                     temp_dir=args.temp_dir,
                 )
