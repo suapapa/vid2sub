@@ -1,6 +1,7 @@
 stt:
   # type: whisper.cpp  -> uses "{api_url}/inference" (whisper-server --convert)
   # type: openai       -> uses "{api_url}/audio/transcriptions" (OpenAI-compatible, e.g. Bifrost)
+  # api_url / api_key: optional here if OPENAI_API_URL / OPENAI_API_KEY are set in the environment
   type: whisper.cpp
   api_url: "http://localhost:8080"
   api_key:

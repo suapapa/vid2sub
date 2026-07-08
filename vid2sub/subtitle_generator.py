@@ -3,10 +3,10 @@ from pathlib import Path
 from typing import Any, Optional, Sequence
 
 import requests
-import yaml
 import yt_dlp
 from moviepy import VideoFileClip
 
+from .config import load_config
 from .humanizer import should_humanize
 from .logger import Logger
 from .openai_srt_processor import OpenAiSrtProcessor
@@ -29,7 +29,7 @@ class SubtitleGenerator:
     }
 
     def __init__(self, config_path: str = "config.yaml"):
-        self.config = self._load_config(config_path)
+        self.config = load_config(config_path)
         stt = self.config.get("stt") or {}
         self.stt_type = stt.get("type") or "whisper.cpp"
         self.stt_api_url = (stt.get("api_url") or "").rstrip("/")
@@ -128,16 +128,6 @@ class SubtitleGenerator:
             Logger.info(f"Saved stage SRT: {stage_file}")
         except OSError as exc:
             Logger.warn(f"Could not save stage SRT {name}: {exc}")
-
-    def _load_config(self, path: str) -> dict:
-        p = Path(path)
-        if not p.is_file():
-            return {}
-        raw = p.read_text(encoding="utf-8")
-        try:
-            return yaml.safe_load(raw) or {}
-        except yaml.YAMLError:
-            return {}
 
     @staticmethod
     def load_reference(polish_with: str) -> str:

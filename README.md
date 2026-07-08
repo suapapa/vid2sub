@@ -43,7 +43,7 @@ Specify the base URL (scheme, host, port) in `stt.api_url`; the client will requ
 
 ## Configuration
 
-Place the following in `config.yaml` (see `config_sample.yaml` for a template):
+Place the following in `config.yaml` (see `config_sample.yaml` for a template), or set `OPENAI_API_URL` / `OPENAI_API_KEY` in the environment (applied to both `stt` and `llm` when those keys are omitted from the file). Values explicitly set in `config.yaml` override the environment variables.
 
 ```yaml
 stt:
@@ -67,6 +67,21 @@ audio:
   separator_model: htdemucs     # demucs model (htdemucs, htdemucs_ft, mdx_extra, ...)
   separator_device:             # cpu | cuda | mps | (empty = auto-detect)
   separator_output_mp3: true    # keep stems as mp3 instead of wav
+```
+
+### Environment variables
+
+| Variable | Applies to | Notes |
+| :--- | :--- | :--- |
+| `OPENAI_API_URL` | `stt.api_url`, `llm.api_url` | Used when the corresponding key is not set in `config.yaml` |
+| `OPENAI_API_KEY` | `stt.api_key`, `llm.api_key` | Used when the corresponding key is not set in `config.yaml` |
+
+Example (no `config.yaml` required for API credentials):
+
+```bash
+export OPENAI_API_URL="https://api.example.com/v1"
+export OPENAI_API_KEY="sk-..."
+uv run python main.py video.mp4 -o output.srt
 ```
 
 The server is expected to receive multipart requests with:

@@ -19,7 +19,7 @@ This file serves as a guideline and progress log for AI agents developing the **
 | Vocal Isolation (pre-STT) | ✅ Done | Optional `demucs` (`--two-stems=vocals`) step in `vid2sub/vocal_isolator.py`. Enabled via `--isolate-vocals` or `audio.isolate_vocals`. Optional dep group `separate`. |
 | STT (Speech-to-Text) Integration | ✅ Done | `whisper-server --convert` + `POST .../inference` at `stt.api_url` (multipart, `requests`). Client uploads MP3 only. |
 | SRT Output | ✅ Done | Save server response (`response_format=srt`) directly. |
-| Configuration File (`config.yaml`) Integration | ✅ Done | `stt.api_url`, `stt.api_key`, `stt.default_language`, `llm.api_url`, `llm.model`, `llm.api_key` (`pyyaml`) |
+| Configuration File (`config.yaml`) Integration | ✅ Done | `stt.api_url`, `stt.api_key`, `stt.default_language`, `llm.api_url`, `llm.model`, `llm.api_key` (`pyyaml`). `OPENAI_API_URL` / `OPENAI_API_KEY` env vars apply to both `stt` and `llm` when omitted from the file; explicit `config.yaml` values override env. |
 | OpenAI-Compatible Server Support (llama-server) | ✅ Done | Using `llm.api_url` (OpenAI API compatible) for polishing, translation, preprocessing, and humanization. |
 | Unified Single-Command CLI (`--translate`) | ✅ Done | No subcommands. Video/URL → generate (`-o`); optional `--translate` adds `<output>_<lang>.srt`. `.srt` input → translate-only (`--translate` required); writes `<input>_<lang>.srt`. |
 | SRT Preprocessing Step | ✅ Done | Correct typos/grammar and merge redundant entries. Opt-in via `--preprocess` (requires an available LLM). |
