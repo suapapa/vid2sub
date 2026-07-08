@@ -36,6 +36,14 @@ class SubtitleGenerator:
         self.stt_api_key = stt.get("api_key") or None
         self.stt_model = stt.get("model") or "whisper-1"
         self.default_language = stt.get("default_language") or "auto"
+        self.stt_condition_on_previous_text = bool(
+            stt.get("condition_on_previous_text", False)
+        )
+        self.stt_temperature, self.stt_temperature_inc = self._parse_stt_temperature(
+            stt.get("temperature", [0.0, 0.2, 0.4, 0.6])
+        )
+        if stt.get("temperature_inc") is not None:
+            self.stt_temperature_inc = float(stt["temperature_inc"])
 
         llm = self.config.get("llm") or {}
         self.llm_api_url = (llm.get("api_url") or "").rstrip("/")
@@ -52,6 +60,42 @@ class SubtitleGenerator:
 
         if not self.stt_api_url:
             raise ValueError("stt.api_url configuration is required.")
+
+    @staticmethod
+    def _parse_stt_temperature(raw: Any) -> tuple[float, float]:
+        """Maps Python-whisper-style temperature tuple to (start, increment)."""
+        if raw is None:
+            return 0.0, 0.2
+        if isinstance(raw, (list, tuple)):
+            if not raw:
+                return 0.0, 0.2
+            temps = [float(value) for value in raw]
+            if len(temps) >= 2:
+                return temps[0], temps[1] - temps[0]
+            return temps[0], 0.2
+        return float(raw), 0.2
+
+    def _build_stt_request_data(self, language: str) -> dict[str, str]:
+        data: dict[str, str] = {
+            "response_format": "srt",
+            "language": language,
+        }
+        if self.stt_type == "whisper.cpp":
+            data["temperature"] = str(self.stt_temperature)
+            data["temperature_inc"] = str(self.stt_temperature_inc)
+            if self.stt_condition_on_previous_text:
+                Logger.warn(
+                    "stt.condition_on_previous_text=true is not supported by "
+                    "whisper-server HTTP API; stock servers default to "
+                    "no_context=true (equivalent to false)."
+                )
+        elif self.stt_type == "openai":
+            data["model"] = self.stt_model
+            data["temperature"] = str(self.stt_temperature)
+            data["condition_on_previous_text"] = (
+                "true" if self.stt_condition_on_previous_text else "false"
+            )
+        return data
 
     @staticmethod
     def _maybe_humanize(
@@ -163,20 +207,16 @@ class SubtitleGenerator:
         """Sends the full audio to the STT HTTP server and receives an SRT."""
         if self.stt_type == "whisper.cpp":
             inference_url = f"{self.stt_api_url}/inference"
-            data = {
-                "response_format": "srt",
-                "language": language,
-            }
         elif self.stt_type == "openai":
             inference_url = f"{self.stt_api_url}/audio/transcriptions"
-            data = {
-                "model": self.stt_model,
-                "response_format": "srt",
-                "language": language,
-            }
         else:
             raise ValueError(f"Unsupported stt.type: {self.stt_type!r}")
-        Logger.info(f"POST {inference_url} ({audio_path.name}, language={language})...")
+        data = self._build_stt_request_data(language)
+        Logger.info(
+            f"POST {inference_url} ({audio_path.name}, language={language}, "
+            f"temperature={self.stt_temperature}, "
+            f"condition_on_previous_text={self.stt_condition_on_previous_text})..."
+        )
         headers = {}
         if self.stt_api_key:
             headers["Authorization"] = f"Bearer {self.stt_api_key}"
