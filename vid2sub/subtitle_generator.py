@@ -78,8 +78,14 @@ class SubtitleGenerator:
     def _build_stt_request_data(self, language: str) -> dict[str, str]:
         data: dict[str, str] = {
             "response_format": "srt",
-            "language": language,
         }
+        # OpenAI-compatible servers (e.g. whisperX) expect an ISO-639-1 code and
+        # reject the literal "auto"; omit the field to enable auto-detection.
+        if self.stt_type == "openai":
+            if language and language.lower() != "auto":
+                data["language"] = language
+        else:
+            data["language"] = language
         if self.stt_type == "whisper.cpp":
             data["temperature"] = str(self.stt_temperature)
             data["temperature_inc"] = str(self.stt_temperature_inc)
@@ -90,11 +96,23 @@ class SubtitleGenerator:
                     "no_context=true (equivalent to false)."
                 )
         elif self.stt_type == "openai":
+            # Only send parameters defined by the OpenAI /audio/transcriptions
+            # schema. Non-standard fields (e.g. condition_on_previous_text,
+            # temperature_inc) make strict gateways/servers such as whisperX
+            # return HTTP 422 Unprocessable Content.
             data["model"] = self.stt_model
             data["temperature"] = str(self.stt_temperature)
-            data["condition_on_previous_text"] = (
-                "true" if self.stt_condition_on_previous_text else "false"
-            )
+
+            # data["align"] = "true"
+            # data["diarize"] = "true"
+            # data["max_line_count"] = "2"
+            # data["max_line_width"] = "16"
+
+            if self.stt_condition_on_previous_text:
+                Logger.warn(
+                    "stt.condition_on_previous_text is not part of the OpenAI "
+                    "/audio/transcriptions schema; ignoring it for stt.type=openai."
+                )
         return data
 
     @staticmethod
@@ -227,6 +245,14 @@ class SubtitleGenerator:
                 files=files,
                 headers=headers,
                 timeout=24 * 3600,
+                # max_line_width=2,
+                # max_line_count=20,
+            )
+        if not resp.ok:
+            Logger.error(
+                f"STT server returned HTTP {resp.status_code} for "
+                f"{inference_url}. Sent fields: {sorted(data)}. "
+                f"Response body: {resp.text[:2000]}"
             )
         resp.raise_for_status()
         return self._extract_srt(resp)
@@ -379,9 +405,7 @@ class SubtitleGenerator:
         srt_body = input_p.read_text(encoding="utf-8")
 
         if not self.llm_api_url:
-            raise ValueError(
-                "llm.api_url in config.yaml is required for translation."
-            )
+            raise ValueError("llm.api_url in config.yaml is required for translation.")
         translator = OpenAiSrtProcessor(
             self.llm_api_url,
             model=self.llm_model,
