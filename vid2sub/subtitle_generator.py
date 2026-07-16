@@ -59,9 +59,6 @@ class SubtitleGenerator:
         if self.separator_output_mp3 is None:
             self.separator_output_mp3 = True
 
-        if not self.stt_api_url:
-            raise ValueError("stt.api_url configuration is required.")
-
     @staticmethod
     def _parse_stt_temperature(raw: Any) -> tuple[float, float]:
         """Maps Python-whisper-style temperature tuple to (start, increment)."""
@@ -204,12 +201,230 @@ class SubtitleGenerator:
 
     def extract_audio(self, source: str, temp_dir: Path) -> Path:
         """Extracts audio from a YouTube URL or a local file."""
-        if source.startswith(("http://", "https://", "www.", "youtu.be")):
+        if self._is_url(source):
             return self._download_youtube(source, temp_dir)
         file_path = Path(source)
         if file_path.suffix.lower() == ".mp3":
             return self._use_mp3_file(file_path)
         return self._extract_from_file(file_path, temp_dir)
+
+    @staticmethod
+    def _subtitle_lang_match(available: dict[str, Any], wanted: str) -> Optional[str]:
+        """Exact or prefix match for a subtitle language code."""
+        if wanted in available:
+            return wanted
+        base = wanted.split("-", 1)[0]
+        if base in available:
+            return base
+        for code in available:
+            if code.startswith(base + "-"):
+                return code
+        return None
+
+    @classmethod
+    def _pick_youtube_subtitle_track(
+        cls,
+        info: dict[str, Any],
+        language: str,
+    ) -> Optional[tuple[str, list[dict[str, Any]], bool]]:
+        """Picks a caption track: (lang, formats, is_manual) or None."""
+
+        def _usable(subs: Any) -> dict[str, list[dict[str, Any]]]:
+            if not isinstance(subs, dict):
+                return {}
+            out: dict[str, list[dict[str, Any]]] = {}
+            for code, formats in subs.items():
+                key = str(code).lower()
+                if not key or key == "live_chat" or not formats:
+                    continue
+                if isinstance(formats, list):
+                    out[key] = formats
+            return out
+
+        manual = _usable(info.get("subtitles"))
+        automatic = _usable(info.get("automatic_captions"))
+        wanted = (language or "auto").strip().lower() or "auto"
+
+        if wanted != "auto":
+            for pool, is_manual in ((manual, True), (automatic, False)):
+                found = cls._subtitle_lang_match(pool, wanted)
+                if found:
+                    return found, pool[found], is_manual
+            return None
+
+        video_lang = info.get("language")
+        preferred: list[str] = []
+        if isinstance(video_lang, str) and video_lang.strip():
+            preferred.append(video_lang.strip().lower())
+        preferred.extend(("en", "ko", "ja", "zh-hans", "zh", "es", "fr", "de"))
+
+        for pool, is_manual in ((manual, True), (automatic, False)):
+            for pref in preferred:
+                found = cls._subtitle_lang_match(pool, pref)
+                if found:
+                    return found, pool[found], is_manual
+            if pool:
+                code = next(iter(pool))
+                return code, pool[code], is_manual
+        return None
+
+    @staticmethod
+    def _select_subtitle_format(
+        formats: Sequence[dict[str, Any]],
+    ) -> Optional[dict[str, Any]]:
+        by_ext = {
+            str(fmt.get("ext")): fmt
+            for fmt in formats
+            if isinstance(fmt, dict) and fmt.get("url") and fmt.get("ext")
+        }
+        for ext in ("srt", "vtt", "ttml", "srv3", "srv2", "srv1"):
+            if ext in by_ext:
+                return by_ext[ext]
+        for fmt in formats:
+            if isinstance(fmt, dict) and fmt.get("url"):
+                return fmt
+        return None
+
+    @staticmethod
+    def _strip_subtitle_markup(text: str) -> str:
+        text = re.sub(r"<[^>]+>", "", text)
+        text = re.sub(r"&nbsp;", " ", text)
+        text = re.sub(r"&amp;", "&", text)
+        text = re.sub(r"&lt;", "<", text)
+        text = re.sub(r"&gt;", ">", text)
+        return text.strip()
+
+    @classmethod
+    def _vtt_to_srt(cls, vtt_body: str) -> str:
+        """Converts WEBVTT (incl. YouTube auto-captions) into SRT text."""
+        lines = vtt_body.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+        blocks: list[tuple[str, str]] = []
+        i = 0
+        while i < len(lines):
+            line = lines[i].strip()
+            if not line or line.upper().startswith("WEBVTT") or line.startswith(
+                ("NOTE", "STYLE", "KIND:", "LANGUAGE:", "REGION")
+            ):
+                i += 1
+                continue
+            if "-->" not in line:
+                i += 1
+                continue
+
+            timing = line.split("-->")
+            if len(timing) != 2:
+                i += 1
+                continue
+            start = timing[0].strip().split()[0].replace(".", ",")
+            end = timing[1].strip().split()[0].replace(".", ",")
+            # Normalize short timestamps (mm:ss.mmm → 00:mm:ss,mmm)
+            if start.count(":") == 1:
+                start = "00:" + start
+            if end.count(":") == 1:
+                end = "00:" + end
+
+            i += 1
+            text_lines: list[str] = []
+            while i < len(lines) and lines[i].strip():
+                cleaned = cls._strip_subtitle_markup(lines[i])
+                if cleaned:
+                    text_lines.append(cleaned)
+                i += 1
+            text = "\n".join(text_lines).strip()
+            if not text:
+                continue
+            # Drop cascading duplicates common in YouTube auto captions.
+            if blocks and blocks[-1][1] == text:
+                # Extend previous cue end time to the later end.
+                prev_start = blocks[-1][0].split(" --> ")[0]
+                blocks[-1] = (f"{prev_start} --> {end}", text)
+                continue
+            blocks.append((f"{start} --> {end}", text))
+
+        out: list[str] = []
+        for idx, (timing, text) in enumerate(blocks, start=1):
+            out.append(str(idx))
+            out.append(timing)
+            out.append(text)
+            out.append("")
+        return "\n".join(out).strip() + ("\n" if blocks else "")
+
+    @classmethod
+    def _subtitle_payload_to_srt(cls, body: str, ext: Optional[str]) -> str:
+        ext_l = (ext or "").lower().lstrip(".")
+        raw = body.lstrip("\ufeff")
+        if ext_l == "srt" or (
+            "-->" in raw and not raw.lstrip().upper().startswith("WEBVTT")
+        ):
+            return raw if raw.endswith("\n") else raw + "\n"
+        if ext_l in ("vtt", "webvtt") or raw.lstrip().upper().startswith("WEBVTT"):
+            return cls._vtt_to_srt(raw)
+        # Last resort: try VTT conversion for srv*/ttml-ish text that embeds cues.
+        if "-->" in raw:
+            return cls._vtt_to_srt(raw)
+        raise ValueError(f"Unsupported YouTube subtitle format: {ext_l or 'unknown'}")
+
+    def try_download_youtube_subtitles(
+        self, url: str, language: str
+    ) -> Optional[tuple[str, str]]:
+        """Downloads existing YouTube captions when available.
+
+        Returns ``(srt_body, lang_code)`` or ``None`` when no usable track exists.
+        Prefers manual captions over automatic ones. Skips download/STT when used.
+        """
+        Logger.info(f"Checking YouTube for existing subtitles: {url}")
+        ydl_opts = {
+            "quiet": True,
+            "no_warnings": True,
+            "nocheckcertificate": True,
+            "no_cache_dir": True,
+            "skip_download": True,
+        }
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=False)
+        if not isinstance(info, dict):
+            return None
+
+        picked = self._pick_youtube_subtitle_track(info, language)
+        if not picked:
+            Logger.info("No YouTube subtitles found; falling back to audio STT.")
+            return None
+
+        lang_code, formats, is_manual = picked
+        fmt = self._select_subtitle_format(formats)
+        if not fmt:
+            Logger.info(
+                f"YouTube subtitle track '{lang_code}' has no downloadable URL; "
+                "falling back to audio STT."
+            )
+            return None
+
+        sub_url = str(fmt["url"])
+        ext = str(fmt.get("ext") or "vtt")
+        kind = "manual" if is_manual else "automatic"
+        Logger.info(
+            f"Downloading YouTube {kind} subtitles "
+            f"(lang={lang_code}, format={ext})..."
+        )
+        resp = requests.get(
+            sub_url,
+            timeout=120,
+            headers={"User-Agent": "vid2sub/0.1 (youtube subtitles)"},
+        )
+        resp.raise_for_status()
+        if not resp.encoding:
+            resp.encoding = resp.apparent_encoding or "utf-8"
+        srt_body = self._subtitle_payload_to_srt(resp.text, ext)
+        if not srt_body.strip():
+            Logger.warn(
+                "Downloaded YouTube subtitles were empty; falling back to audio STT."
+            )
+            return None
+        Logger.success(
+            f"Using YouTube {kind} subtitles (lang={lang_code}); "
+            "skipping audio download, vocal isolation, and STT."
+        )
+        return srt_body, lang_code
 
     def _use_mp3_file(self, file_path: Path) -> Path:
         Logger.info(f"Using MP3 file directly: {file_path}")
@@ -255,6 +470,8 @@ class SubtitleGenerator:
 
     def transcribe_via_server(self, audio_path: Path, language: str) -> str:
         """Sends the full audio to the STT HTTP server and receives an SRT."""
+        if not self.stt_api_url:
+            raise ValueError("stt.api_url configuration is required for STT.")
         if self.stt_type == "whisper.cpp":
             inference_url = f"{self.stt_api_url}/inference"
         elif self.stt_type == "openai":
@@ -375,13 +592,25 @@ class SubtitleGenerator:
         preprocess: bool = False,
         humanize: bool = False,
     ):
-        raw_audio = self.extract_audio(source, temp_path)
-        audio_for_stt = raw_audio
-        if isolate_vocals:
-            audio_for_stt = self.isolate_vocals(raw_audio, temp_path)
-        srt_body = self.transcribe_via_server(audio_for_stt, language)
+        effective_language = language
+        youtube_sub = None
+        if self._is_url(source):
+            youtube_sub = self.try_download_youtube_subtitles(source, language)
+
+        if youtube_sub:
+            srt_body, caption_lang = youtube_sub
+            if (language or "auto").strip().lower() in ("", "auto"):
+                effective_language = caption_lang
+            self._dump_stage(temp_path, "10_youtube.srt", srt_body)
+        else:
+            raw_audio = self.extract_audio(source, temp_path)
+            audio_for_stt = raw_audio
+            if isolate_vocals:
+                audio_for_stt = self.isolate_vocals(raw_audio, temp_path)
+            srt_body = self.transcribe_via_server(audio_for_stt, language)
+            self._dump_stage(temp_path, "10_stt.srt", srt_body)
+
         final_srt = srt_body
-        self._dump_stage(temp_path, "10_stt.srt", srt_body)
         Logger.info(f"Saving SRT: {out_file}")
         out_file.write_text(final_srt, encoding="utf-8")
 
@@ -411,7 +640,7 @@ class SubtitleGenerator:
                 self._dump_stage(temp_path, "30_polish.srt", final_srt)
 
             humanized = self._maybe_humanize(
-                polisher, language, final_srt, enabled=humanize
+                polisher, effective_language, final_srt, enabled=humanize
             )
             if humanized != final_srt:
                 self._dump_stage(temp_path, "40_humanize.srt", humanized)

@@ -6,12 +6,12 @@ A CLI tool that extracts audio from YouTube URLs or local videos, sends the full
 
 ## Key Features
 
-- **YouTube**: Downloads best audio using `yt-dlp` and extracts as MP3.
+- **YouTube**: Downloads best audio using `yt-dlp` and extracts as MP3. When the video already has captions (manual preferred, then automatic), those are downloaded as SRT and **audio extraction / vocal isolation / STT are skipped**. Falls back to the STT path when no captions are available.
 - **Local Video**: Extracts audio tracks from local video files as MP3 using `moviepy`.
 - **Local MP3**: Uses an existing MP3 file directly for STT (skips audio extraction).
-- **Vocal Isolation (Optional)**: When the source contains background music or sound effects that degrade transcription, `demucs` can separate clean vocals before STT. Enable with `create --isolate-vocals` or `audio.isolate_vocals: true` in config.
-- **Upload**: Sends the extracted MP3 directly to the `/inference` endpoint. Format conversion is handled on the **server-side** (`whisper-server --convert`).
-- **Subtitles**: Writes the SRT body returned by the server directly to the output file.
+- **Vocal Isolation (Optional)**: When the source contains background music or sound effects that degrade transcription, `demucs` can separate clean vocals before STT. Enable with `--isolate-vocals` or `audio.isolate_vocals: true` in config. Not used when YouTube captions are reused.
+- **Upload**: Sends the extracted MP3 directly to the `/inference` endpoint. Format conversion is handled on the **server-side** (`whisper-server --convert`). Skipped when reusing YouTube captions.
+- **Subtitles**: Writes the SRT body returned by the server (or downloaded YouTube captions) directly to the output file.
 - **Polishing (Optional)**: Refines generated SRTs for mistranslations and typos using a project reference (local file or URL) via `create --polish_with`.
   - **Preprocessing**: When enabled with `--preprocess` (requires `llm.api_url` in config), the tool corrects typos, fixes grammar, and merges redundant entries. Off by default.
   - **Humanizer (Korean)**: When enabled with `--humanize` and the subtitle language is Korean (or detected as Korean with `--lang auto`), the `.agents/skills/humanizer` skill is applied after preprocessing/polishing to make dialogue sound more natural. Off by default.
@@ -25,7 +25,7 @@ A CLI tool that extracts audio from YouTube URLs or local videos, sends the full
 - [FFmpeg](https://ffmpeg.org/): Required for `moviepy` / `yt-dlp` audio processing.
 - **Demucs (Optional, for vocal isolation)**: Only needed when using `--isolate-vocals` / `audio.isolate_vocals`. Install the optional dependency group with `uv sync --extra separate`. This pulls in PyTorch, so it is large; a GPU (CUDA/MPS) is recommended but not required.
 - **whisper-server (`--convert`)**: Follow the build and run instructions in the [ggml-org/whisper.cpp](https://github.com/ggml-org/whisper.cpp) repository. You **must** enable the **`--convert`** flag when starting **`whisper-server`**. This allows the server to convert uploaded audio (like MP3) to the required format. This project interacts with the server's **`/inference`** multipart API.
-- **Network**: The client must be able to reach the server at `stt.api_url` specified in `config.yaml`.
+- **Network**: For the STT path, the client must reach `stt.api_url` in `config.yaml`. For YouTube URLs with existing captions, only outbound access for `yt-dlp` / caption download is needed (STT optional until fallback).
 - **LLM Server (Polishing/Translation)**: Polishing and translation features require an OpenAI-compatible API (e.g. **llama-server**). Set `llm.api_url` (and optionally `llm.model`, `llm.api_key`) in `config.yaml`.
 
 ## STT Server (whisper-server)
@@ -108,8 +108,13 @@ uv sync
 ## Usage
 
 ```bash
-# YouTube → SRT (Uploads MP3; requires whisper-server --convert running)
+# YouTube → SRT
+# If the video already has captions, they are downloaded and STT is skipped.
+# Otherwise: downloads audio and uploads MP3 (requires whisper-server --convert).
 uv run main.py "https://www.youtube.com/watch?v=..." -o output.srt
+
+# YouTube captions → translate only (no STT when captions exist)
+uv run main.py "https://www.youtube.com/watch?v=..." -o output.srt --translate ko
 
 # Local File → SRT
 uv run main.py video.mp4 -o output.srt
@@ -136,12 +141,12 @@ uv run main.py video.mp4 -o output.srt --polish_with ./README.md
 | :--- | :--- |
 | `input` | YouTube URL, local video/MP3 path, or existing `.srt` file (translate-only when `.srt`) |
 | `-o`, `--output` | Path to output SRT when generating from video/URL. If omitted: `<temp_dir>/<name>.srt` when `--temp_dir` is set, otherwise `<name>.srt` in the current directory (`<name>` is the YouTube video title or local file stem). Ignored for `.srt` input. |
-| `-l`, `--lang` | Language code. Uses `stt.default_language` if omitted. |
+| `-l`, `--lang` | Language code for STT recognition, or which YouTube caption track to prefer when reusing captions. Uses `stt.default_language` if omitted. |
 | `-t`, `--translate` | Comma-separated language codes (e.g., `ko,en,ja`). With video/URL: also translates the generated SRT. With `.srt` input: required; translates that file. Writes `<stem>_<lang>.srt` for each. |
-| `--isolate-vocals` / `--no-isolate-vocals` | Enable/disable vocal isolation (demucs) before STT. Overrides `audio.isolate_vocals` in config. |
+| `--isolate-vocals` / `--no-isolate-vocals` | Enable/disable vocal isolation (demucs) before STT. Overrides `audio.isolate_vocals` in config. Ignored when YouTube captions are reused. |
 | `--preprocess` | Enable LLM preprocessing (typo/grammar fixes). Off by default; requires an available LLM. |
 | `--humanize` | Enable Korean humanizer after LLM steps. Off by default; applies to Korean subtitles. |
-| `--temp_dir` | Fixed temporary directory; not deleted after processing. Per-stage SRTs (STT, preprocess, polish, humanize, translate) are saved under `<temp_dir>/stages/`. |
+| `--temp_dir` | Fixed temporary directory; not deleted after processing. Per-stage SRTs (YouTube/STT, preprocess, polish, humanize, translate) are saved under `<temp_dir>/stages/`. |
 | `-p`, `--polish_with` | Path or `http(s)` URL to a reference document. Refines STT results and overwrites the `-o` file. |
 
 ## Dependency Summary
