@@ -78,6 +78,11 @@ def main() -> None:
         help="Disable vocal isolation even if enabled in config.yaml.",
     )
     parser.add_argument(
+        "--no-youtube-subtitles",
+        action="store_true",
+        help="Ignore existing YouTube captions and always generate subtitles via audio STT.",
+    )
+    parser.add_argument(
         "--preprocess",
         dest="preprocess",
         action="store_true",
@@ -130,6 +135,7 @@ def main() -> None:
                 language=args.lang,
                 polish_with=args.polish_with,
                 isolate_vocals=args.isolate_vocals,
+                use_youtube_subtitles=not args.no_youtube_subtitles,
                 preprocess=preprocess,
                 humanize=humanize,
             )

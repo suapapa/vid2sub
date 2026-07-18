@@ -6,7 +6,7 @@ A CLI tool that extracts audio from YouTube URLs or local videos, sends the full
 
 ## Key Features
 
-- **YouTube**: Downloads best audio using `yt-dlp` and extracts as MP3. When the video already has captions (manual preferred, then automatic), those are downloaded as SRT and **audio extraction / vocal isolation / STT are skipped**. Falls back to the STT path when no captions are available.
+- **YouTube**: Downloads best audio using `yt-dlp` and extracts as MP3. When the video already has captions (manual preferred, then automatic), those are downloaded as SRT and **audio extraction / vocal isolation / STT are skipped**. Falls back to the STT path when no captions are available, or use `--no-youtube-subtitles` to ignore captions and force STT.
 - **Local Video**: Extracts audio tracks from local video files as MP3 using `moviepy`.
 - **Local MP3**: Uses an existing MP3 file directly for STT (skips audio extraction).
 - **Vocal Isolation (Optional)**: When the source contains background music or sound effects that degrade transcription, `demucs` can separate clean vocals before STT. Enable with `--isolate-vocals` or `audio.isolate_vocals: true` in config. Not used when YouTube captions are reused.
@@ -116,6 +116,9 @@ uv run main.py "https://www.youtube.com/watch?v=..." -o output.srt
 # YouTube captions → translate only (no STT when captions exist)
 uv run main.py "https://www.youtube.com/watch?v=..." -o output.srt --translate ko
 
+# Ignore existing YouTube captions and generate subtitles with STT
+uv run main.py "https://www.youtube.com/watch?v=..." -o output.srt --no-youtube-subtitles
+
 # Local File → SRT
 uv run main.py video.mp4 -o output.srt
 
@@ -143,6 +146,7 @@ uv run main.py video.mp4 -o output.srt --polish_with ./README.md
 | `-o`, `--output` | Path to output SRT when generating from video/URL. If omitted: `<temp_dir>/<name>.srt` when `--temp_dir` is set, otherwise `<name>.srt` in the current directory (`<name>` is the YouTube video title or local file stem). Ignored for `.srt` input. |
 | `-l`, `--lang` | Language code for STT recognition, or which YouTube caption track to prefer when reusing captions. Uses `stt.default_language` if omitted. |
 | `-t`, `--translate` | Comma-separated language codes (e.g., `ko,en,ja`). With video/URL: also translates the generated SRT. With `.srt` input: required; translates that file. Writes `<stem>_<lang>.srt` for each. |
+| `--no-youtube-subtitles` | Ignore existing YouTube captions and always download audio for STT. |
 | `--isolate-vocals` / `--no-isolate-vocals` | Enable/disable vocal isolation (demucs) before STT. Overrides `audio.isolate_vocals` in config. Ignored when YouTube captions are reused. |
 | `--preprocess` | Enable LLM preprocessing (typo/grammar fixes). Off by default; requires an available LLM. |
 | `--humanize` | Enable Korean humanizer after LLM steps. Off by default; applies to Korean subtitles. |

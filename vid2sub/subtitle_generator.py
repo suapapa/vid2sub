@@ -538,6 +538,7 @@ class SubtitleGenerator:
         language: Optional[str] = None,
         polish_with: Optional[str] = None,
         isolate_vocals: Optional[bool] = None,
+        use_youtube_subtitles: bool = True,
         preprocess: bool = False,
         humanize: bool = False,
     ):
@@ -564,6 +565,7 @@ class SubtitleGenerator:
                 language=lang,
                 polish_with=polish_with,
                 isolate_vocals=do_isolate,
+                use_youtube_subtitles=use_youtube_subtitles,
                 preprocess=preprocess,
                 humanize=humanize,
             )
@@ -576,6 +578,7 @@ class SubtitleGenerator:
                     language=lang,
                     polish_with=polish_with,
                     isolate_vocals=do_isolate,
+                    use_youtube_subtitles=use_youtube_subtitles,
                     preprocess=preprocess,
                     humanize=humanize,
                 )
@@ -589,13 +592,16 @@ class SubtitleGenerator:
         language: str,
         polish_with: Optional[str] = None,
         isolate_vocals: bool = False,
+        use_youtube_subtitles: bool = True,
         preprocess: bool = False,
         humanize: bool = False,
     ):
         effective_language = language
         youtube_sub = None
-        if self._is_url(source):
+        if self._is_url(source) and use_youtube_subtitles:
             youtube_sub = self.try_download_youtube_subtitles(source, language)
+        elif self._is_url(source):
+            Logger.info("Ignoring existing YouTube subtitles; using audio STT.")
 
         if youtube_sub:
             srt_body, caption_lang = youtube_sub
