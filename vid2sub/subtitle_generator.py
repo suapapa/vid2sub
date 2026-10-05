@@ -178,16 +178,16 @@ class SubtitleGenerator:
             Logger.warn(f"Could not save stage SRT {name}: {exc}")
 
     @staticmethod
-    def load_reference(polish_with: str) -> str:
-        s = polish_with.strip()
+    def load_reference(reference: str) -> str:
+        s = reference.strip()
         if not s:
-            raise ValueError("--polish_with value is empty.")
+            raise ValueError("Reference value is empty.")
         if s.startswith(("http://", "https://")):
-            Logger.info(f"Fetching polish reference: {s}")
+            Logger.info(f"Fetching reference: {s}")
             resp = requests.get(
                 s,
                 timeout=120,
-                headers={"User-Agent": "vid2sub/0.1 (polish reference)"},
+                headers={"User-Agent": "vid2sub/0.1 (reference)"},
             )
             resp.raise_for_status()
             if not resp.encoding:
@@ -196,7 +196,7 @@ class SubtitleGenerator:
         path = Path(s)
         if not path.is_file():
             raise FileNotFoundError(f"Reference file not found: {path}")
-        Logger.info(f"Loading polish reference file: {path}")
+        Logger.info(f"Loading reference file: {path}")
         return path.read_text(encoding="utf-8")
 
     def extract_audio(self, source: str, temp_dir: Path) -> Path:
@@ -529,6 +529,51 @@ class SubtitleGenerator:
                     return text
         return raw
 
+    def _apply_llm_stages(
+        self,
+        srt_body: str,
+        language: str,
+        temp_path: Optional[Path],
+        *,
+        reference: Optional[str] = None,
+        preprocess: bool = False,
+        humanize: bool = False,
+    ) -> str:
+        if not (preprocess or reference or humanize):
+            return srt_body
+
+        if not self.llm_api_url:
+            raise ValueError(
+                "llm.api_url in config.yaml is required for preprocessing, polishing, or humanization."
+            )
+
+        polisher = OpenAiSrtProcessor(
+            self.llm_api_url,
+            model=self.llm_model,
+            api_key=self.llm_api_key,
+        )
+
+        self._dump_stage(temp_path, "05_orig.srt", srt_body)
+
+        current_srt = srt_body
+        if preprocess:
+            current_srt = polisher.preprocess(current_srt)
+            self._dump_stage(temp_path, "20_preprocess.srt", current_srt)
+
+        if reference:
+            ref_text = self.load_reference(reference)
+            current_srt = polisher.polish(current_srt, ref_text)
+            self._dump_stage(temp_path, "30_polish.srt", current_srt)
+
+        humanized = self._maybe_humanize(
+            polisher, language, current_srt, enabled=humanize
+        )
+        if humanized != current_srt:
+            self._dump_stage(temp_path, "40_humanize.srt", humanized)
+            current_srt = humanized
+
+        return current_srt
+
     def process(
         self,
         source: str,
@@ -536,6 +581,7 @@ class SubtitleGenerator:
         temp_dir: Optional[str] = None,
         *,
         language: Optional[str] = None,
+        reference: Optional[str] = None,
         polish_with: Optional[str] = None,
         isolate_vocals: Optional[bool] = None,
         use_youtube_subtitles: bool = True,
@@ -551,6 +597,7 @@ class SubtitleGenerator:
         if not lang:
             lang = "auto"
 
+        ref_doc = reference or polish_with
         do_isolate = (
             self.isolate_vocals_default if isolate_vocals is None else isolate_vocals
         )
@@ -563,7 +610,7 @@ class SubtitleGenerator:
                 out_p,
                 temp_path,
                 language=lang,
-                polish_with=polish_with,
+                reference=ref_doc,
                 isolate_vocals=do_isolate,
                 use_youtube_subtitles=use_youtube_subtitles,
                 preprocess=preprocess,
@@ -576,7 +623,7 @@ class SubtitleGenerator:
                     out_p,
                     Path(td),
                     language=lang,
-                    polish_with=polish_with,
+                    reference=ref_doc,
                     isolate_vocals=do_isolate,
                     use_youtube_subtitles=use_youtube_subtitles,
                     preprocess=preprocess,
@@ -590,6 +637,7 @@ class SubtitleGenerator:
         temp_path: Path,
         *,
         language: str,
+        reference: Optional[str] = None,
         polish_with: Optional[str] = None,
         isolate_vocals: bool = False,
         use_youtube_subtitles: bool = True,
@@ -620,39 +668,64 @@ class SubtitleGenerator:
         Logger.info(f"Saving SRT: {out_file}")
         out_file.write_text(final_srt, encoding="utf-8")
 
-        polisher = None
-        if self.llm_api_url:
-            polisher = OpenAiSrtProcessor(
-                self.llm_api_url,
-                model=self.llm_model,
-                api_key=self.llm_api_key,
-            )
-        elif polish_with or preprocess or humanize:
-            raise ValueError(
-                "llm.api_url in config.yaml is required for preprocessing, polishing, or humanization."
-            )
-
-        if polisher and (preprocess or polish_with or humanize):
-            self._dump_stage(temp_path, "05_orig.srt", srt_body)
-
-            if preprocess:
-                srt_body = polisher.preprocess(srt_body)
-                self._dump_stage(temp_path, "20_preprocess.srt", srt_body)
-            final_srt = srt_body
-
-            if polish_with:
-                ref = self.load_reference(polish_with)
-                final_srt = polisher.polish(srt_body, ref)
-                self._dump_stage(temp_path, "30_polish.srt", final_srt)
-
-            humanized = self._maybe_humanize(
-                polisher, effective_language, final_srt, enabled=humanize
-            )
-            if humanized != final_srt:
-                self._dump_stage(temp_path, "40_humanize.srt", humanized)
-            final_srt = humanized
-            out_file.write_text(final_srt, encoding="utf-8")
+        ref_doc = reference or polish_with
+        processed_srt = self._apply_llm_stages(
+            srt_body,
+            effective_language,
+            temp_path,
+            reference=ref_doc,
+            preprocess=preprocess,
+            humanize=humanize,
+        )
+        if processed_srt != srt_body:
+            out_file.write_text(processed_srt, encoding="utf-8")
             Logger.success(f"Overwrote SRT after LLM processing: {out_file}")
+
+    def process_srt_file(
+        self,
+        input_srt_path: str,
+        output_srt_path: Optional[str] = None,
+        temp_dir: Optional[str] = None,
+        *,
+        language: Optional[str] = None,
+        reference: Optional[str] = None,
+        polish_with: Optional[str] = None,
+        preprocess: bool = False,
+        humanize: bool = False,
+    ) -> Path:
+        """Applies LLM processing (preprocessing, reference polishing, humanizing) to an existing SRT file."""
+        input_p = Path(input_srt_path)
+        if not input_p.exists():
+            raise FileNotFoundError(f"SRT file not found: {input_srt_path}")
+
+        out_p = Path(output_srt_path) if output_srt_path else input_p
+        temp_path = Path(temp_dir) if temp_dir else None
+        if temp_path:
+            temp_path.mkdir(parents=True, exist_ok=True)
+
+        srt_body = input_p.read_text(encoding="utf-8")
+        lang = (language or self.default_language or "auto").strip()
+
+        # If overwriting in-place without a temp_dir stage directory, save backup
+        if out_p.resolve() == input_p.resolve() and not temp_path:
+            orig_backup = input_p.with_name(f"{input_p.stem}_orig.srt")
+            if not orig_backup.exists():
+                orig_backup.write_text(srt_body, encoding="utf-8")
+                Logger.info(f"Backup original SRT to: {orig_backup}")
+
+        ref_doc = reference or polish_with
+        final_srt = self._apply_llm_stages(
+            srt_body,
+            lang,
+            temp_path,
+            reference=ref_doc,
+            preprocess=preprocess,
+            humanize=humanize,
+        )
+        out_p.parent.mkdir(parents=True, exist_ok=True)
+        out_p.write_text(final_srt, encoding="utf-8")
+        Logger.success(f"Saved refined SRT: {out_p}")
+        return out_p
 
     def translate_srt_file(
         self,

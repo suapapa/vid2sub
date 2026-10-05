@@ -40,12 +40,12 @@ def main() -> None:
     )
     parser.add_argument(
         "input",
-        help="YouTube URL, local video/MP3 path, or existing .srt file (translate-only when .srt)",
+        help="YouTube URL, local video/MP3 path, or existing .srt file (for refinement with -r, preprocessing, humanizing, and/or translation)",
     )
     parser.add_argument(
         "-o", "--output",
         default=None,
-        help="Output SRT path when generating from video/URL. Defaults to <temp_dir>/<name>.srt when --temp_dir is set, otherwise <name>.srt in the current directory (<name> is the YouTube title or local file stem). Ignored for .srt input.",
+        help="Output SRT path when generating from video/URL or refining an SRT. Defaults to <temp_dir>/<name>.srt when --temp_dir is set, otherwise <name>.srt in the current directory (<name> is the YouTube title or local file stem). For .srt input without -o, modifies the file (saving backup) or writes under --temp_dir.",
     )
     parser.add_argument(
         "-l", "--lang",
@@ -56,13 +56,14 @@ def main() -> None:
         "-t", "--translate",
         default=None,
         metavar="LANGS",
-        help="Translate into comma-separated languages (e.g., ko,en,ja). With video/URL: also writes <output>_<lang>.srt. With .srt input: required; writes <input>_<lang>.srt.",
+        help="Translate into comma-separated languages (e.g., ko,en,ja). With video/URL: also writes <output>_<lang>.srt. With .srt input: writes <input>_<lang>.srt.",
     )
     parser.add_argument(
-        "-p", "--polish_with",
+        "-r", "--ref", "--reference", "-p", "--polish_with",
+        dest="reference",
         default=None,
         metavar="PATH_OR_URL",
-        help="Reference document (local path or http(s) URL). Used for polishing STT SRT.",
+        help="Reference document (local path or http(s) URL) to refine jargon/terminology.",
     )
     parser.add_argument(
         "--isolate-vocals",
@@ -102,28 +103,42 @@ def main() -> None:
     args = parser.parse_args()
     preprocess = args.preprocess
     humanize = args.humanize
+    reference = args.reference
 
     try:
         translate_langs = _parse_translate_to(args.translate)
         gen = SubtitleGenerator()
 
         if _is_srt_input(args.input):
-            if not translate_langs:
+            if not (translate_langs or reference or preprocess or humanize):
                 raise ValueError(
-                    "SRT input requires --translate with at least one target language "
-                    "(e.g., --translate en,ja)."
+                    "SRT input requires at least one operation: -r/--ref (to refine jargon), "
+                    "--preprocess, --humanize, or -t/--translate."
                 )
-            if args.polish_with:
-                raise ValueError(
-                    "--polish_with applies only when generating subtitles from video/URL, "
-                    "not when translating an existing SRT."
+
+            srt_target = args.input
+            if reference or preprocess or humanize:
+                out_path = args.output
+                if not out_path and args.temp_dir:
+                    out_path = str(Path(args.temp_dir) / Path(args.input).name)
+                processed_file = gen.process_srt_file(
+                    args.input,
+                    output_srt_path=out_path,
+                    temp_dir=args.temp_dir,
+                    language=args.lang,
+                    reference=reference,
+                    preprocess=preprocess,
+                    humanize=humanize,
                 )
-            gen.translate_srt_file(
-                args.input,
-                translate_to=translate_langs,
-                humanize=humanize,
-                temp_dir=args.temp_dir,
-            )
+                srt_target = str(processed_file)
+
+            if translate_langs:
+                gen.translate_srt_file(
+                    srt_target,
+                    translate_to=translate_langs,
+                    humanize=humanize,
+                    temp_dir=args.temp_dir,
+                )
         else:
             output_path = args.output or str(
                 gen.default_output_path(args.input, args.temp_dir)
@@ -133,7 +148,7 @@ def main() -> None:
                 output_path,
                 args.temp_dir,
                 language=args.lang,
-                polish_with=args.polish_with,
+                reference=reference,
                 isolate_vocals=args.isolate_vocals,
                 use_youtube_subtitles=not args.no_youtube_subtitles,
                 preprocess=preprocess,

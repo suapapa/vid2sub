@@ -118,7 +118,7 @@ class OpenAiSrtProcessor:
         return out
 
     def polish(self, srt_body: str, reference_text: str) -> str:
-        Logger.info(f"Polishing SRT using llama-server...")
+        Logger.info("Polishing SRT with reference using LLM...")
         prompt = build_polish_prompt(reference_text, srt_body)
         out = self._call_api(prompt, temp=0.4)
         if not out.endswith("\n"):
